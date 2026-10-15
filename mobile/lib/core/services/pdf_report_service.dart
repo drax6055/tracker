@@ -15,15 +15,31 @@ class PdfReportService {
     String currencySymbol = '₹',
     String period = 'OCTOBER 2026',
   }) async {
-    final pdf = pw.Document();
+    // Load Unicode fonts that support the Indian Rupee symbol '₹' (U+20B9) and bullets '•' (U+2022)
+    pw.Font fontRegular;
+    pw.Font fontBold;
+    try {
+      fontRegular = await PdfGoogleFonts.notoSansRegular();
+      fontBold = await PdfGoogleFonts.notoSansBold();
+    } catch (_) {
+      try {
+        fontRegular = await PdfGoogleFonts.robotoRegular();
+        fontBold = await PdfGoogleFonts.robotoBold();
+      } catch (_) {
+        fontRegular = pw.Font.helvetica();
+        fontBold = pw.Font.helveticaBold();
+      }
+    }
+
+    final theme = pw.ThemeData.withFont(
+      base: fontRegular,
+      bold: fontBold,
+    );
+
+    final pdf = pw.Document(theme: theme);
     final nowFormatted = DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.now());
 
-    // In standard PDF fonts (Helvetica), the Unicode Indian Rupee symbol '₹' (U+20B9)
-    // is NOT included in the Latin-1 character set, causing blank boxes / missing glyphs.
-    // Displaying 'Rs.' guarantees clean, universal display across all PDF readers, printers, and OSs.
-    final String pdfCurrency = (currencySymbol == '₹' || currencySymbol.contains('₹') || currencySymbol.trim().isEmpty)
-        ? 'Rs.'
-        : currencySymbol.trim();
+    final String pdfCurrency = currencySymbol.trim().isEmpty ? '₹' : currencySymbol.trim();
 
     String formatAmt(num val) {
       try {
@@ -137,6 +153,7 @@ class PdfReportService {
 
     pdf.addPage(
       pw.MultiPage(
+        theme: theme,
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(32),
         header: (context) => pw.Container(

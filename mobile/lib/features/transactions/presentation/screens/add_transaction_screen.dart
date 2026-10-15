@@ -42,17 +42,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
     if (!mounted) return;
     setState(() {
-      _categories = cats.isNotEmpty ? cats : ['General'];
-      _accounts = accNames.isNotEmpty ? accNames : ['Primary Vault'];
+      _categories = cats;
+      _accounts = accNames;
 
-      if (!_categories.contains(_selectedCategory)) {
+      if (_categories.isNotEmpty && !_categories.contains(_selectedCategory)) {
         _selectedCategory = _categories.first;
       }
-      if (!_accounts.contains(_selectedAccount)) {
+      if (_accounts.isNotEmpty && !_accounts.contains(_selectedAccount)) {
         _selectedAccount = _accounts.first;
       }
-      if (!_accounts.contains(_selectedDestination)) {
-        _selectedDestination = _accounts.length > 1 ? _accounts[1] : _accounts.first;
+      if (_accounts.length > 1 && !_accounts.contains(_selectedDestination)) {
+        _selectedDestination = _accounts[1];
       }
     });
   }
@@ -383,6 +383,18 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       BrutalToast.showError(context, 'AMOUNT IS REQUIRED');
       return;
     }
+    if (_selectedType != 'TRANSFER' && (_categories.isEmpty || _selectedCategory.isEmpty)) {
+      BrutalToast.showError(context, 'PLEASE ADD & SELECT A CATEGORY FIRST');
+      return;
+    }
+    if (_accounts.isEmpty || _selectedAccount.isEmpty) {
+      BrutalToast.showError(context, 'PLEASE ADD & SELECT AN ACCOUNT FIRST');
+      return;
+    }
+    if (_selectedType == 'TRANSFER' && (_accounts.length < 2 || _selectedDestination.isEmpty)) {
+      BrutalToast.showError(context, 'TRANSFER REQUIRES AT LEAST 2 VAULT ACCOUNTS');
+      return;
+    }
     BrutalToast.showSuccess(context, 'TRANSACTION RECORDED');
     context.pop();
   }
@@ -478,9 +490,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
-                            value: _categories.contains(_selectedCategory)
-                                ? _selectedCategory
-                                : (_categories.isNotEmpty ? _categories.first : null),
+                            value: _categories.contains(_selectedCategory) ? _selectedCategory : null,
+                            hint: Text(
+                              'TAP + MANAGE TO ADD CATEGORY',
+                              style: BrutalTypography.bodySmall.copyWith(color: BrutalColors.textSecondary, fontWeight: FontWeight.bold),
+                            ),
                             isExpanded: true,
                             dropdownColor: BrutalColors.surface,
                             icon: const Icon(Icons.arrow_drop_down, color: BrutalColors.textPrimary),
@@ -524,9 +538,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
-                          value: _accounts.contains(_selectedAccount)
-                              ? _selectedAccount
-                              : (_accounts.isNotEmpty ? _accounts.first : null),
+                          value: _accounts.contains(_selectedAccount) ? _selectedAccount : null,
+                          hint: Text(
+                            'TAP + MANAGE TO ADD ACCOUNT',
+                            style: BrutalTypography.bodySmall.copyWith(color: BrutalColors.textSecondary, fontWeight: FontWeight.bold),
+                          ),
                           isExpanded: true,
                           dropdownColor: BrutalColors.surface,
                           icon: const Icon(Icons.arrow_drop_down, color: BrutalColors.textPrimary),
@@ -552,9 +568,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
-                            value: _accounts.contains(_selectedDestination)
-                                ? _selectedDestination
-                                : (_accounts.length > 1 ? _accounts[1] : (_accounts.isNotEmpty ? _accounts.first : null)),
+                            value: _accounts.contains(_selectedDestination) ? _selectedDestination : null,
+                            hint: Text(
+                              'TAP + MANAGE TO ADD ACCOUNT',
+                              style: BrutalTypography.bodySmall.copyWith(color: BrutalColors.textSecondary, fontWeight: FontWeight.bold),
+                            ),
                             isExpanded: true,
                             dropdownColor: BrutalColors.surface,
                             icon: const Icon(Icons.arrow_drop_down, color: BrutalColors.textPrimary),

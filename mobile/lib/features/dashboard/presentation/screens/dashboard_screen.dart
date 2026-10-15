@@ -9,6 +9,7 @@ import '../../../../core/widgets/brutal_button.dart';
 import '../../../../core/widgets/brutal_card.dart';
 import '../../../../core/widgets/brutal_chip.dart';
 import '../../../../core/widgets/brutal_toast.dart';
+import '../../../../core/storage/secure_storage_service.dart';
 import 'package:ledger_app/features/auth/presentation/controllers/auth_controller.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -27,6 +28,21 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   final double toReceive = 35000.0;
 
   bool _isMasked = false;
+  List<Map<String, dynamic>> _vaultAccounts = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVaultAccounts();
+  }
+
+  Future<void> _loadVaultAccounts() async {
+    final accs = await SecureStorageService.getAccounts();
+    if (!mounted) return;
+    setState(() {
+      _vaultAccounts = accs;
+    });
+  }
 
   String _formatAmount(double amount, String currency, {bool showDecimals = true}) {
     if (_isMasked) return '$currency ***';
@@ -282,57 +298,76 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   children: [
                     Text('ACCOUNTS', style: BrutalTypography.headingMedium),
                     GestureDetector(
-                      onTap: () => context.push('/accounts'),
+                      onTap: () async {
+                        await context.push('/accounts');
+                        _loadVaultAccounts();
+                      },
                       child: Text(
-                        'VIEW ALL (4) →',
+                        'VIEW ALL (${_vaultAccounts.length}) →',
                         style: BrutalTypography.sticker.copyWith(color: BrutalColors.primaryYellow),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                SizedBox(
-                  height: 128,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: [
-                      _buildHorizontalAccountCard(
-                        name: 'HDFC Salaried',
-                        type: 'BANK',
-                        balance: 425000.0,
-                        digits: '4821',
-                        accent: BrutalColors.cyan,
-                        currency: currency,
+                if (_vaultAccounts.isEmpty)
+                  GestureDetector(
+                    onTap: () async {
+                      await context.push('/accounts');
+                      _loadVaultAccounts();
+                    },
+                    child: Container(
+                      height: 80,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: BrutalColors.surface,
+                        border: Border.all(color: BrutalColors.border, width: 2.5),
+                        boxShadow: const [
+                          BoxShadow(color: BrutalColors.border, offset: Offset(3, 3)),
+                        ],
                       ),
-                      _buildHorizontalAccountCard(
-                        name: 'Cash Vault',
-                        type: 'CASH',
-                        balance: 24500.0,
-                        digits: 'WAL',
-                        accent: BrutalColors.lime,
-                        currency: currency,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.add_circle_outline, color: BrutalColors.primaryYellow, size: 24),
+                          const SizedBox(width: 10),
+                          Text(
+                            '+ ADD YOUR FIRST VAULT ACCOUNT',
+                            style: BrutalTypography.sticker.copyWith(
+                              color: BrutalColors.textPrimary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
-                      _buildHorizontalAccountCard(
-                        name: 'Infinia Metal',
-                        type: 'CREDIT CARD',
-                        balance: 48500.0,
-                        digits: '9920',
-                        accent: BrutalColors.hotPink,
-                        currency: currency,
-                        subtext: 'UTILIZATION: 9.7%',
-                      ),
-                      _buildHorizontalAccountCard(
-                        name: 'Auto Loan',
-                        type: 'LOAN',
-                        balance: 356300.0,
-                        digits: 'SBI',
-                        accent: BrutalColors.orange,
-                        currency: currency,
-                        subtext: 'EMI: ₹14,500 DUE 5TH',
-                      ),
-                    ],
+                    ),
+                  )
+                else
+                  SizedBox(
+                    height: 128,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _vaultAccounts.length,
+                      separatorBuilder: (ctx, idx) => const SizedBox(width: 12),
+                      itemBuilder: (context, idx) {
+                        final acc = _vaultAccounts[idx];
+                        final type = (acc['type'] ?? 'BANK').toString();
+                        Color accent = BrutalColors.cyan;
+                        if (type == 'CASH') accent = BrutalColors.lime;
+                        if (type == 'CREDIT_CARD') accent = BrutalColors.hotPink;
+                        if (type == 'LOAN') accent = BrutalColors.orange;
+                        return _buildHorizontalAccountCard(
+                          name: (acc['title'] ?? 'Account').toString(),
+                          type: type,
+                          balance: (acc['balance'] as num?)?.toDouble() ?? 0.0,
+                          digits: (acc['digits'] ?? '').toString(),
+                          accent: accent,
+                          currency: currency,
+                          subtext: acc['subtext']?.toString(),
+                        );
+                      },
+                    ),
                   ),
-                ),
                 const SizedBox(height: 24),
 
                 // 5. Recent Transactions

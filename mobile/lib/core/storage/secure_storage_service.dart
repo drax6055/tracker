@@ -80,18 +80,6 @@ class SecureStorageService {
 
   // Categories (Dynamic)
   static const String _categoriesKey = 'ledger_dynamic_categories';
-  static const List<String> defaultCategories = [
-    'Food & Dining',
-    'Rent & Utilities',
-    'Travel & Commute',
-    'Shopping',
-    'Health & Medical',
-    'Entertainment',
-    'Salary',
-    'Freelance',
-    'Investment',
-    'Bills',
-  ];
 
   static Future<void> saveCategories(List<String> categories) async {
     await _storage.write(key: _categoriesKey, value: jsonEncode(categories));
@@ -99,13 +87,12 @@ class SecureStorageService {
 
   static Future<List<String>> getCategories() async {
     final str = await _storage.read(key: _categoriesKey);
-    if (str == null) return List<String>.from(defaultCategories);
+    if (str == null) return [];
     try {
       final list = jsonDecode(str) as List<dynamic>;
-      final result = list.map((e) => e.toString()).toList();
-      return result.isEmpty ? List<String>.from(defaultCategories) : result;
+      return list.map((e) => e.toString()).toList();
     } catch (_) {
-      return List<String>.from(defaultCategories);
+      return [];
     }
   }
 
@@ -122,42 +109,6 @@ class SecureStorageService {
 
   // Accounts Vault (Dynamic)
   static const String _accountsKey = 'ledger_vault_accounts';
-  static const List<Map<String, dynamic>> defaultAccounts = [
-    {
-      'id': 'acc_1',
-      'title': 'HDFC Salaried Account',
-      'subtitle': 'HDFC Bank • Last 4: 4821',
-      'balance': 425000.0,
-      'type': 'BANK',
-      'digits': '4821',
-    },
-    {
-      'id': 'acc_2',
-      'title': 'Physical Cash Vault',
-      'subtitle': 'Safe Box & Pocket Wallet',
-      'balance': 24500.0,
-      'type': 'CASH',
-      'digits': 'WAL',
-    },
-    {
-      'id': 'acc_3',
-      'title': 'Infinia Metal Card',
-      'subtitle': 'HDFC Bank • Limit: ₹5,00,000',
-      'balance': 48500.0,
-      'type': 'CREDIT_CARD',
-      'digits': '9920',
-      'subtext': 'UTILIZATION: 9.7% • DUE 22ND OF MONTH',
-    },
-    {
-      'id': 'acc_4',
-      'title': 'Vehicle Loan #49281',
-      'subtitle': 'Principal: ₹5,00,000 @ 8.4% • 36 Months',
-      'balance': 356300.0,
-      'type': 'LOAN',
-      'digits': 'SBI',
-      'subtext': 'REMAINING: 28% • EMI ₹14,500',
-    },
-  ];
 
   static Future<void> saveAccounts(List<Map<String, dynamic>> accounts) async {
     await _storage.write(key: _accountsKey, value: jsonEncode(accounts));
@@ -165,13 +116,12 @@ class SecureStorageService {
 
   static Future<List<Map<String, dynamic>>> getAccounts() async {
     final str = await _storage.read(key: _accountsKey);
-    if (str == null) return List<Map<String, dynamic>>.from(defaultAccounts);
+    if (str == null) return [];
     try {
       final list = jsonDecode(str) as List<dynamic>;
-      final result = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      return result.isEmpty ? List<Map<String, dynamic>>.from(defaultAccounts) : result;
+      return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
     } catch (_) {
-      return List<Map<String, dynamic>>.from(defaultAccounts);
+      return [];
     }
   }
 

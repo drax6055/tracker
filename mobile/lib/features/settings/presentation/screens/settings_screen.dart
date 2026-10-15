@@ -27,6 +27,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   TimeOfDay _reminderTime = const TimeOfDay(hour: 21, minute: 0);
   bool _bankPrivacyEnabled = true;
   bool _notifPermissionGranted = false;
+  bool _isDemoAccount = false;
 
   @override
   void initState() {
@@ -34,6 +35,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _loadCurrency();
     _loadReminderSettings();
     _loadSecurityAndPermissions();
+    _checkIfDemo();
+  }
+
+  Future<void> _checkIfDemo() async {
+    final isDemo = await SecureStorageService.isCurrentUserDemo();
+    if (mounted) {
+      setState(() => _isDemoAccount = isDemo);
+    }
   }
 
   Future<void> _loadSecurityAndPermissions() async {
@@ -225,6 +234,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _handlePurgeAccount() async {
+    final isDemo = await SecureStorageService.isCurrentUserDemo();
+    if (!mounted) return;
+
+    if (isDemo || _isDemoAccount) {
+      BrutalDialog.show(
+        context: context,
+        title: 'ACCESS RESTRICTED',
+        content: Text(
+          'This is a demonstration account and does not have access to remove or purge this account.',
+          style: BrutalTypography.bodyMedium,
+        ),
+        confirmText: 'UNDERSTOOD',
+        cancelText: 'DISMISS',
+        onConfirm: () {},
+      );
+      BrutalToast.showWarning(
+        context,
+        'RESTRICTED: Demo account cannot be removed.',
+      );
+      return;
+    }
+
     BrutalDialog.show(
       context: context,
       title: 'PURGE VAULT ACCOUNT?',
@@ -634,12 +665,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             const SizedBox(height: 12),
             BrutalButton(
-              text: 'TERMINATE ACCOUNT & PURGE DATA',
-              backgroundColor: BrutalColors.red,
-              textColor: BrutalColors.textPrimary,
+              text: _isDemoAccount
+                  ? 'TERMINATE ACCOUNT (DEMO LOCKED)'
+                  : 'TERMINATE ACCOUNT & PURGE DATA',
+              backgroundColor: _isDemoAccount ? BrutalColors.surfaceElevated : BrutalColors.red,
+              textColor: _isDemoAccount ? BrutalColors.textMuted : BrutalColors.textPrimary,
               height: 48,
               onPressed: _handlePurgeAccount,
             ),
+            if (_isDemoAccount) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Demo account (Bruce Wayne) is locked and cannot be terminated or removed.',
+                style: BrutalTypography.bodySmall.copyWith(
+                  color: BrutalColors.textMuted,
+                  fontSize: 10.5,
+                ),
+              ),
+            ],
           ],
         ),
       ),

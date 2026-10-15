@@ -18,9 +18,113 @@ class PdfReportService {
     final pdf = pw.Document();
     final nowFormatted = DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.now());
 
+    // In standard PDF fonts (Helvetica), the Unicode Indian Rupee symbol '₹' (U+20B9)
+    // is NOT included in the Latin-1 character set, causing blank boxes / missing glyphs.
+    // Displaying 'Rs.' guarantees clean, universal display across all PDF readers, printers, and OSs.
+    final String pdfCurrency = (currencySymbol == '₹' || currencySymbol.contains('₹') || currencySymbol.trim().isEmpty)
+        ? 'Rs.'
+        : currencySymbol.trim();
+
+    String formatAmt(num val) {
+      try {
+        final f = NumberFormat('#,##,##0.00');
+        return '$pdfCurrency ${f.format(val)}';
+      } catch (_) {
+        return '$pdfCurrency ${val.toStringAsFixed(2)}';
+      }
+    }
+
     final accounts = await SecureStorageService.getAccounts();
     final transactions = await SecureStorageService.getTransactions();
     final debts = await SecureStorageService.getDebts();
+    final isDemo = await SecureStorageService.isCurrentUserDemo();
+
+    // Calculate dynamic financials
+    double netWorth = 0.0;
+    double totalAssets = 0.0;
+    double totalLiabilities = 0.0;
+    double totalInflow = 0.0;
+    double totalOutflow = 0.0;
+
+    if (isDemo && accounts.isEmpty && transactions.isEmpty) {
+      netWorth = 845200.0;
+      totalAssets = 1250000.0;
+      totalLiabilities = 404800.0;
+      totalInflow = 125000.0;
+      totalOutflow = 48500.0;
+    } else {
+      for (final a in accounts) {
+        final bal = (a['balance'] as num?)?.toDouble() ?? 0.0;
+        final type = (a['type'] ?? 'BANK').toString().toUpperCase();
+        if (type == 'LOAN' || type == 'CREDIT_CARD') {
+          totalLiabilities += bal;
+        } else {
+          totalAssets += bal;
+        }
+      }
+
+      for (final d in debts) {
+        final rem = (d['remainingAmount'] as num?)?.toDouble() ?? 0.0;
+        final type = (d['type'] ?? 'BORROWED').toString();
+        if (type == 'BORROWED') {
+          totalLiabilities += rem;
+        } else if (type == 'LENT') {
+          totalAssets += rem;
+        }
+      }
+
+      netWorth = totalAssets - totalLiabilities;
+
+      for (final t in transactions) {
+        final amt = (t['amount'] as num?)?.toDouble() ?? 0.0;
+        final type = (t['type'] ?? 'EXPENSE').toString().toUpperCase();
+        if (type == 'INCOME') {
+          totalInflow += amt;
+        } else if (type == 'EXPENSE') {
+          totalOutflow += amt;
+        }
+      }
+    }
+
+    final netSavings = totalInflow - totalOutflow;
+    final double savingsRate = totalInflow > 0
+        ? ((netSavings / totalInflow) * 100).clamp(0.0, 100.0)
+        : 0.0;
+
+    // Group expenses by category
+    final Map<String, double> catExpenses = {};
+    for (final t in transactions) {
+      if ((t['type'] ?? 'EXPENSE').toString().toUpperCase() == 'EXPENSE') {
+        final cat = (t['category'] ?? 'General').toString();
+        final amt = (t['amount'] as num?)?.toDouble() ?? 0.0;
+        catExpenses[cat] = (catExpenses[cat] ?? 0.0) + amt;
+      }
+    }
+
+    List<List<String>> categoryRows = [];
+    if (isDemo && catExpenses.isEmpty) {
+      categoryRows = [
+        ['Food & Groceries', '35.0%', 'Primary Household', formatAmt(16975.00)],
+        ['Rent & Utilities', '25.0%', 'Living Essentials', formatAmt(12125.00)],
+        ['Travel & Commute', '20.0%', 'Fuel & Rideshare', formatAmt(9700.00)],
+        ['Shopping & Gadgets', '12.0%', 'Discretionary', formatAmt(5820.00)],
+        ['Entertainment', '8.0%', 'Dining Out / Movies', formatAmt(3880.00)],
+      ];
+    } else if (catExpenses.isEmpty) {
+      categoryRows = [
+        ['No expenses recorded yet', '0.0%', 'No transactions', formatAmt(0.00)],
+      ];
+    } else {
+      categoryRows = catExpenses.entries.map((e) {
+        final pct = totalOutflow > 0 ? (e.value / totalOutflow * 100).toStringAsFixed(1) : '0.0';
+        return [
+          e.key,
+          '$pct%',
+          'Audited Spend',
+          formatAmt(e.value),
+        ];
+      }).toList();
+    }
 
     // Clean Brutalist Palette
     const black = PdfColor.fromInt(0xFF000000);
@@ -110,13 +214,13 @@ class PdfReportService {
           pw.SizedBox(height: 10),
           pw.Row(
             children: [
-              _buildMetricBox('NET WORTH', '$currencySymbol 8,45,200', yellow, black, flex: 2),
+              _buildMetricBox('NET WORTH', formatAmt(netWorth), yellow, black, flex: 2),
               pw.SizedBox(width: 8),
-              _buildMetricBox('INFLOW (INCOME)', '$currencySymbol 1,25,000', green, white, flex: 2),
+              _buildMetricBox('INFLOW (INCOME)', formatAmt(totalInflow), green, white, flex: 2),
               pw.SizedBox(width: 8),
-              _buildMetricBox('OUTFLOW (EXPENSE)', '$currencySymbol 48,500', red, white, flex: 2),
+              _buildMetricBox('OUTFLOW (EXPENSE)', formatAmt(totalOutflow), red, white, flex: 2),
               pw.SizedBox(width: 8),
-              _buildMetricBox('SAVINGS RATE', '61.2%', cyan, black, flex: 1),
+              _buildMetricBox('SAVINGS RATE', '${savingsRate.toStringAsFixed(1)}%', cyan, black, flex: 1),
             ],
           ),
           pw.SizedBox(height: 20),
@@ -135,7 +239,7 @@ class PdfReportService {
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
                     pw.Text('TOTAL ASSETS', style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
-                    pw.Text('$currencySymbol 12,50,000.00', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: green)),
+                    pw.Text(formatAmt(totalAssets), style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold, color: green)),
                   ],
                 ),
                 pw.Container(width: 1.5, height: 30, color: black),
@@ -143,7 +247,7 @@ class PdfReportService {
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
                     pw.Text('TOTAL LIABILITIES', style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
-                    pw.Text('$currencySymbol 4,04,800.00', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: red)),
+                    pw.Text(formatAmt(totalLiabilities), style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold, color: red)),
                   ],
                 ),
                 pw.Container(width: 1.5, height: 30, color: black),
@@ -151,7 +255,7 @@ class PdfReportService {
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
                     pw.Text('NET POSITION', style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
-                    pw.Text('$currencySymbol 8,45,200.00', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold, color: black)),
+                    pw.Text(formatAmt(netWorth), style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold, color: black)),
                   ],
                 ),
               ],
@@ -171,7 +275,7 @@ class PdfReportService {
             headers: ['ACCOUNT NAME', 'TYPE', 'IDENTIFIER', 'STATUS / NOTE', 'BALANCE'],
             data: accounts.isEmpty
                 ? [
-                    ['No accounts created yet in vault', '-', '-', 'Active', '$currencySymbol 0.00']
+                    ['No accounts created yet in vault', '-', '-', 'Active', formatAmt(0.00)]
                   ]
                 : accounts.map((a) {
                     final bal = (a['balance'] as num?)?.toDouble() ?? 0.0;
@@ -180,7 +284,7 @@ class PdfReportService {
                       (a['type'] ?? 'BANK').toString(),
                       (a['digits'] ?? '').toString().isNotEmpty ? '•••• ${a['digits']}' : 'VAULT',
                       (a['subtitle'] ?? 'Active').toString(),
-                      '$currencySymbol ${bal.toStringAsFixed(2)}',
+                      formatAmt(bal),
                     ];
                   }).toList(),
           ),
@@ -196,13 +300,7 @@ class PdfReportService {
             cellStyle: const pw.TextStyle(fontSize: 9),
             cellPadding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             headers: ['CATEGORY', 'PERCENTAGE', 'SHARE', 'ALLOCATED AMOUNT'],
-            data: [
-              ['Food & Groceries', '35.0%', 'Primary Household', '$currencySymbol 16,975.00'],
-              ['Rent & Utilities', '25.0%', 'Living Essentials', '$currencySymbol 12,125.00'],
-              ['Travel & Commute', '20.0%', 'Fuel & Rideshare', '$currencySymbol 9,700.00'],
-              ['Shopping & Gadgets', '12.0%', 'Discretionary', '$currencySymbol 5,820.00'],
-              ['Entertainment', '8.0%', 'Dining Out / Movies', '$currencySymbol 3,880.00'],
-            ],
+            data: categoryRows,
           ),
           pw.SizedBox(height: 24),
 
@@ -218,7 +316,7 @@ class PdfReportService {
             headers: ['DATE', 'TRANSACTION DESCRIPTION', 'CATEGORY', 'ACCOUNT', 'FLOW', 'AMOUNT'],
             data: transactions.isEmpty
                 ? [
-                    ['-', 'No transactions logged in this period', '-', '-', '-', '$currencySymbol 0.00']
+                    ['-', 'No transactions logged in this period', '-', '-', '-', formatAmt(0.00)]
                   ]
                 : transactions.take(15).map((t) {
                     final type = (t['type'] ?? 'EXPENSE').toString();
@@ -230,7 +328,7 @@ class PdfReportService {
                       (t['category'] ?? 'General').toString(),
                       (t['account'] ?? 'Vault').toString(),
                       type == 'INCOME' ? 'INFLOW' : type == 'EXPENSE' ? 'OUTFLOW' : 'TRANSFER',
-                      '$prefix$currencySymbol ${amt.toStringAsFixed(2)}',
+                      '$prefix${formatAmt(amt)}',
                     ];
                   }).toList(),
           ),
@@ -257,8 +355,8 @@ class PdfReportService {
                     return [
                       (d['person'] ?? 'Person').toString(),
                       type == 'LENT' ? 'LENT (TO RECEIVE)' : 'BORROWED (I OWE)',
-                      '$currencySymbol ${orig.toStringAsFixed(2)}',
-                      '$currencySymbol ${rem.toStringAsFixed(2)}',
+                      formatAmt(orig),
+                      formatAmt(rem),
                       (d['dueDate'] ?? '').toString(),
                       (d['status'] ?? 'ACTIVE').toString(),
                     ];

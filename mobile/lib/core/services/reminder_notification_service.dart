@@ -72,23 +72,43 @@ class ReminderNotificationService {
     }
   }
 
-  /// Request permissions for alerts & exact alarms
-  Future<void> requestPermissions() async {
+  /// Check if notification permissions are actively granted by the OS
+  Future<bool> checkPermissionsGranted() async {
+    if (kIsWeb) return true;
+    try {
+      final androidPlugin = _notificationsPlugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      if (androidPlugin != null) {
+        final enabled = await androidPlugin.areNotificationsEnabled();
+        return enabled ?? false;
+      }
+      return true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /// Request runtime permissions for alerts & exact alarms
+  Future<bool> requestPermissions() async {
     try {
       if (!kIsWeb) {
         final androidPlugin = _notificationsPlugin
             .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-        await androidPlugin?.requestNotificationsPermission();
+        final notifGranted = await androidPlugin?.requestNotificationsPermission();
         await androidPlugin?.requestExactAlarmsPermission();
 
         final iosPlugin = _notificationsPlugin
             .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
-        await iosPlugin?.requestPermissions(alert: true, badge: true, sound: true);
+        final iosGranted = await iosPlugin?.requestPermissions(alert: true, badge: true, sound: true);
+
+        return (notifGranted ?? true) && (iosGranted ?? true);
       }
+      return true;
     } catch (e) {
       if (kDebugMode) {
         print('[NotificationService] Permission request warning: $e');
       }
+      return false;
     }
   }
 

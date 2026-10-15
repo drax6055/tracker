@@ -10,6 +10,7 @@ import '../../../../core/widgets/brutal_card.dart';
 import '../../../../core/widgets/brutal_chip.dart';
 import '../../../../core/widgets/brutal_toast.dart';
 import '../../../../core/storage/secure_storage_service.dart';
+import '../../../../core/services/reminder_notification_service.dart';
 import 'package:ledger_app/features/auth/presentation/controllers/auth_controller.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -34,6 +35,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   void initState() {
     super.initState();
     _loadDashboardData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ReminderNotificationService().requestPermissions();
+    });
   }
 
   Future<void> _loadDashboardData() async {

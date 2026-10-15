@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/security/privacy_curtain.dart';
 import 'core/services/reminder_notification_service.dart';
 import 'core/theme/brutal_theme.dart';
 import 'router/app_router.dart';
@@ -25,6 +26,9 @@ class LedgerApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: BrutalTheme.darkTheme,
       routerConfig: router,
+      builder: (context, child) {
+        return PrivacyCurtain(child: child ?? const SizedBox.shrink());
+      },
     );
   }
 }

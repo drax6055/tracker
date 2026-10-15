@@ -11,6 +11,7 @@ import '../../../../core/widgets/brutal_dialog.dart';
 import '../../../../core/widgets/brutal_progress_bar.dart';
 import '../../../../core/widgets/brutal_text_field.dart';
 import '../../../../core/widgets/brutal_toast.dart';
+import '../../../../core/storage/secure_storage_service.dart';
 import 'package:ledger_app/features/auth/presentation/controllers/auth_controller.dart';
 
 class AccountItem {
@@ -43,51 +44,49 @@ class AccountsScreen extends ConsumerStatefulWidget {
 }
 
 class _AccountsScreenState extends ConsumerState<AccountsScreen> {
-  late List<AccountItem> _accounts;
+  List<AccountItem> _accounts = [];
 
   @override
   void initState() {
     super.initState();
-    _accounts = [
-      AccountItem(
-        id: 'acc_1',
-        title: 'HDFC Salaried Account',
-        subtitle: 'HDFC Bank • Last 4: 4821',
-        balance: 425000.0,
-        type: 'BANK',
-        accentColor: BrutalColors.cyan,
-        digits: '4821',
-      ),
-      AccountItem(
-        id: 'acc_2',
-        title: 'Physical Cash Vault',
-        subtitle: 'Safe Box & Pocket Wallet',
-        balance: 24500.0,
-        type: 'CASH',
-        accentColor: BrutalColors.lime,
-        digits: 'WAL',
-      ),
-      AccountItem(
-        id: 'acc_3',
-        title: 'Infinia Metal Card',
-        subtitle: 'HDFC Bank • Limit: ₹5,00,000',
-        balance: 48500.0,
-        type: 'CREDIT_CARD',
-        accentColor: BrutalColors.hotPink,
-        digits: '9920',
-        subtext: 'UTILIZATION: 9.7% • DUE 22ND OF MONTH',
-      ),
-      AccountItem(
-        id: 'acc_4',
-        title: 'Vehicle Loan #49281',
-        subtitle: 'Principal: ₹5,00,000 @ 8.4% • 36 Months',
-        balance: 356300.0,
-        type: 'LOAN',
-        accentColor: BrutalColors.orange,
-        digits: 'SBI',
-        subtext: 'REMAINING: 28% • EMI ₹14,500',
-      ),
-    ];
+    _loadAccounts();
+  }
+
+  Future<void> _loadAccounts() async {
+    final rawList = await SecureStorageService.getAccounts();
+    if (!mounted) return;
+    setState(() {
+      _accounts = rawList.map((m) {
+        final type = (m['type'] ?? 'BANK').toString();
+        Color accent = BrutalColors.cyan;
+        if (type == 'CASH') accent = BrutalColors.lime;
+        if (type == 'CREDIT_CARD') accent = BrutalColors.hotPink;
+        if (type == 'LOAN') accent = BrutalColors.orange;
+        return AccountItem(
+          id: (m['id'] ?? 'acc_${DateTime.now().millisecondsSinceEpoch}').toString(),
+          title: (m['title'] ?? 'Account').toString(),
+          subtitle: (m['subtitle'] ?? '').toString(),
+          balance: (m['balance'] as num?)?.toDouble() ?? 0.0,
+          type: type,
+          accentColor: accent,
+          digits: (m['digits'] ?? '').toString(),
+          subtext: m['subtext']?.toString(),
+        );
+      }).toList();
+    });
+  }
+
+  void _saveAccounts() {
+    final list = _accounts.map((a) => {
+      'id': a.id,
+      'title': a.title,
+      'subtitle': a.subtitle,
+      'balance': a.balance,
+      'type': a.type,
+      'digits': a.digits,
+      'subtext': a.subtext,
+    }).toList();
+    SecureStorageService.saveAccounts(list);
   }
 
   void _showEditAccountDialog(AccountItem account) {
@@ -198,6 +197,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                           if (selectedType == 'CREDIT_CARD') account.accentColor = BrutalColors.hotPink;
                           if (selectedType == 'LOAN') account.accentColor = BrutalColors.orange;
                         });
+                        _saveAccounts();
 
                         Navigator.pop(ctx);
                         BrutalToast.showSuccess(context, 'VAULT ACCOUNT UPDATED');
@@ -227,6 +227,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
         setState(() {
           _accounts.removeWhere((a) => a.id == account.id);
         });
+        _saveAccounts();
         BrutalToast.showWarning(context, '${account.title.toUpperCase()} PURGED FROM VAULT');
       },
     );
@@ -348,6 +349,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                             ),
                           );
                         });
+                        _saveAccounts();
 
                         Navigator.pop(ctx);
                         BrutalToast.showSuccess(context, 'NEW VAULT ACCOUNT CREATED');

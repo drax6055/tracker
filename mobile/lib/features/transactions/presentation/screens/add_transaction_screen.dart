@@ -18,56 +18,46 @@ class AddTransactionScreen extends StatefulWidget {
 
 class _AddTransactionScreenState extends State<AddTransactionScreen> {
   String _selectedType = 'EXPENSE'; // EXPENSE, INCOME, TRANSFER
-  String _selectedAccount = 'HDFC Salaried';
-  String _selectedDestination = 'Cash Vault';
-  String _selectedCategory = 'Food & Dining';
+  String _selectedAccount = '';
+  String _selectedDestination = '';
+  String _selectedCategory = '';
 
   final _amountController = TextEditingController();
   final _titleController = TextEditingController();
   final _noteController = TextEditingController();
 
-  final List<String> _categories = [
-    'Food & Dining',
-    'Rent & Utilities',
-    'Travel & Commute',
-    'Shopping',
-    'Health & Medical',
-    'Entertainment',
-    'Salary',
-    'Freelance',
-    'Investment',
-    'Bills',
-  ];
-
-  final List<String> _customCategories = [];
-
-  final List<String> _accounts = [
-    'HDFC Salaried',
-    'Cash Vault',
-    'Infinia Metal',
-  ];
+  List<String> _categories = [];
+  List<String> _accounts = [];
 
   @override
   void initState() {
     super.initState();
-    _loadCustomCategories();
+    _loadData();
   }
 
-  Future<void> _loadCustomCategories() async {
-    final custom = await SecureStorageService.getCustomCategories();
-    if (custom.isNotEmpty) {
-      setState(() {
-        _customCategories.addAll(custom);
-        for (final c in custom) {
-          if (!_categories.contains(c)) {
-            _categories.add(c);
-          }
-        }
-      });
-    }
+  Future<void> _loadData() async {
+    final cats = await SecureStorageService.getCategories();
+    final accsRaw = await SecureStorageService.getAccounts();
+    final accNames = accsRaw.map((a) => (a['title'] ?? 'Account').toString()).toList();
+
+    if (!mounted) return;
+    setState(() {
+      _categories = cats.isNotEmpty ? cats : ['General'];
+      _accounts = accNames.isNotEmpty ? accNames : ['Primary Vault'];
+
+      if (!_categories.contains(_selectedCategory)) {
+        _selectedCategory = _categories.first;
+      }
+      if (!_accounts.contains(_selectedAccount)) {
+        _selectedAccount = _accounts.first;
+      }
+      if (!_accounts.contains(_selectedDestination)) {
+        _selectedDestination = _accounts.length > 1 ? _accounts[1] : _accounts.first;
+      }
+    });
   }
 
-  void _showAddCategoryDialog() {
+  void _showManageCategoriesDialog() {
     final catController = TextEditingController();
 
     showModalBottomSheet(
@@ -79,7 +69,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       ),
       builder: (ctx) {
         return StatefulBuilder(
-          builder: (context, setModalState) {
+          builder: (dialogCtx, setModalState) {
             return Padding(
               padding: EdgeInsets.only(
                 left: 20,
@@ -95,7 +85,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('CUSTOM CATEGORIES', style: BrutalTypography.headingSmall),
+                        Text('MANAGE CATEGORIES', style: BrutalTypography.headingSmall),
                         IconButton(
                           icon: const Icon(Icons.close, color: BrutalColors.textPrimary),
                           onPressed: () => Navigator.pop(ctx),
@@ -105,8 +95,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     const SizedBox(height: 14),
                     BrutalTextField(
                       controller: catController,
-                      label: 'NEW CATEGORY NAME',
-                      hintText: 'e.g. Crypto & Stocks, Pet Care, Gym',
+                      label: 'ADD NEW CATEGORY',
+                      hintText: 'e.g. Groceries, Gym, Crypto, Subscriptions',
                     ),
                     const SizedBox(height: 14),
                     BrutalButton(
@@ -114,7 +104,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       backgroundColor: BrutalColors.primaryYellow,
                       textColor: BrutalColors.textDark,
                       height: 44,
-                      onPressed: () async {
+                      onPressed: () {
                         final val = catController.text.trim();
                         if (val.isEmpty) {
                           BrutalToast.showError(ctx, 'Category name cannot be empty');
@@ -127,56 +117,59 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
                         setState(() {
                           _categories.add(val);
-                          _customCategories.add(val);
                           _selectedCategory = val;
                         });
-                        SecureStorageService.saveCustomCategories(_customCategories);
+                        SecureStorageService.saveCategories(_categories);
 
                         catController.clear();
-                        Navigator.pop(ctx);
-                        BrutalToast.showSuccess(context, 'CATEGORY "$val" CREATED & SELECTED');
+                        setModalState(() {});
+                        BrutalToast.showSuccess(context, 'CATEGORY "$val" ADDED & SELECTED');
                       },
                     ),
-                    if (_customCategories.isNotEmpty) ...[
-                      const SizedBox(height: 20),
-                      Text('YOUR CUSTOM CATEGORIES', style: BrutalTypography.label),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _customCategories.map((cat) {
-                          return Container(
-                            decoration: BoxDecoration(
-                              color: BrutalColors.surfaceElevated,
-                              border: Border.all(color: BrutalColors.border, width: 2),
+                    const SizedBox(height: 20),
+                    Text('ACTIVE CATEGORIES (${_categories.length})', style: BrutalTypography.label),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _categories.map((cat) {
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: _selectedCategory == cat ? BrutalColors.primaryYellow.withAlpha(51) : BrutalColors.surfaceElevated,
+                            border: Border.all(
+                              color: _selectedCategory == cat ? BrutalColors.primaryYellow : BrutalColors.border,
+                              width: 2,
                             ),
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(cat, style: BrutalTypography.bodySmall.copyWith(fontWeight: FontWeight.bold)),
-                                const SizedBox(width: 6),
-                                InkWell(
-                                  onTap: () {
-                                    setState(() {
-                                      _categories.remove(cat);
-                                      _customCategories.remove(cat);
-                                      if (_selectedCategory == cat) {
-                                        _selectedCategory = _categories.first;
-                                      }
-                                    });
-                                    SecureStorageService.saveCustomCategories(_customCategories);
-                                    setModalState(() {});
-                                    BrutalToast.showWarning(context, 'Category "$cat" removed');
-                                  },
-                                  child: const Icon(Icons.close, size: 14, color: BrutalColors.red),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ],
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(cat, style: BrutalTypography.bodySmall.copyWith(fontWeight: FontWeight.bold)),
+                              const SizedBox(width: 8),
+                              InkWell(
+                                onTap: () {
+                                  if (_categories.length <= 1) {
+                                    BrutalToast.showWarning(context, 'At least 1 category must remain');
+                                    return;
+                                  }
+                                  setState(() {
+                                    _categories.remove(cat);
+                                    if (_selectedCategory == cat) {
+                                      _selectedCategory = _categories.first;
+                                    }
+                                  });
+                                  SecureStorageService.saveCategories(_categories);
+                                  setModalState(() {});
+                                  BrutalToast.showWarning(context, 'Category "$cat" deleted');
+                                },
+                                child: const Icon(Icons.close, size: 14, color: BrutalColors.red),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
                   ],
                 ),
               ),
@@ -184,6 +177,196 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           },
         );
       },
+    );
+  }
+
+  void _showAddAccountDialog() {
+    final nameController = TextEditingController();
+    final balanceController = TextEditingController();
+    String accountType = 'BANK';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: BrutalColors.surface,
+      shape: const RoundedRectangleBorder(
+        side: BorderSide(color: BrutalColors.border, width: 3.0),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (dialogCtx, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 24,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('MANAGE ACCOUNTS', style: BrutalTypography.headingSmall),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: BrutalColors.textPrimary),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    BrutalTextField(
+                      controller: nameController,
+                      label: 'NEW ACCOUNT NAME',
+                      hintText: 'e.g. HDFC Salary, SBI Savings, Cash Wallet',
+                    ),
+                    const SizedBox(height: 12),
+                    BrutalTextField(
+                      controller: balanceController,
+                      label: 'CURRENT BALANCE (₹)',
+                      hintText: '0.00',
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    ),
+                    const SizedBox(height: 12),
+                    Text('ACCOUNT TYPE', style: BrutalTypography.label),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        _buildTypeChip('BANK', 'BANK', BrutalColors.cyan, accountType, (t) => setModalState(() => accountType = t)),
+                        const SizedBox(width: 6),
+                        _buildTypeChip('CASH', 'CASH', BrutalColors.lime, accountType, (t) => setModalState(() => accountType = t)),
+                        const SizedBox(width: 6),
+                        _buildTypeChip('CREDIT_CARD', 'CARD', BrutalColors.hotPink, accountType, (t) => setModalState(() => accountType = t)),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    BrutalButton(
+                      text: '+ CREATE & SELECT ACCOUNT',
+                      backgroundColor: BrutalColors.cyan,
+                      textColor: BrutalColors.textDark,
+                      height: 44,
+                      onPressed: () async {
+                        final val = nameController.text.trim();
+                        if (val.isEmpty) {
+                          BrutalToast.showError(ctx, 'Account name cannot be empty');
+                          return;
+                        }
+                        if (_accounts.contains(val)) {
+                          BrutalToast.showError(ctx, 'Account already exists');
+                          return;
+                        }
+
+                        final bal = double.tryParse(balanceController.text.trim()) ?? 0.0;
+                        final currentVault = await SecureStorageService.getAccounts();
+                        currentVault.add({
+                          'id': 'acc_${DateTime.now().millisecondsSinceEpoch}',
+                          'title': val,
+                          'subtitle': '$accountType Account',
+                          'balance': bal,
+                          'type': accountType,
+                          'digits': 'NEW',
+                        });
+                        await SecureStorageService.saveAccounts(currentVault);
+
+                        if (!mounted) return;
+                        setState(() {
+                          _accounts.add(val);
+                          _selectedAccount = val;
+                        });
+
+                        if (ctx.mounted) {
+                          Navigator.pop(ctx);
+                        }
+                        BrutalToast.showSuccess(context, 'ACCOUNT "$val" CREATED & SELECTED');
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    Text('CURRENT VAULT ACCOUNTS (${_accounts.length})', style: BrutalTypography.label),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _accounts.map((acc) {
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: _selectedAccount == acc ? BrutalColors.cyan.withAlpha(51) : BrutalColors.surfaceElevated,
+                            border: Border.all(
+                              color: _selectedAccount == acc ? BrutalColors.cyan : BrutalColors.border,
+                              width: 2,
+                            ),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(acc, style: BrutalTypography.bodySmall.copyWith(fontWeight: FontWeight.bold)),
+                              const SizedBox(width: 8),
+                              InkWell(
+                                onTap: () async {
+                                  if (_accounts.length <= 1) {
+                                    BrutalToast.showWarning(context, 'At least 1 account must remain in vault');
+                                    return;
+                                  }
+                                  final currentVault = await SecureStorageService.getAccounts();
+                                  currentVault.removeWhere((a) => (a['title'] ?? '') == acc);
+                                  await SecureStorageService.saveAccounts(currentVault);
+
+                                  if (!mounted) return;
+                                  setState(() {
+                                    _accounts.remove(acc);
+                                    if (_selectedAccount == acc) {
+                                      _selectedAccount = _accounts.first;
+                                    }
+                                    if (_selectedDestination == acc) {
+                                      _selectedDestination = _accounts.length > 1 ? _accounts[1] : _accounts.first;
+                                    }
+                                  });
+                                  setModalState(() {});
+                                  if (mounted) {
+                                    BrutalToast.showWarning(context, 'Account "$acc" removed from vault');
+                                  }
+                                },
+                                child: const Icon(Icons.close, size: 14, color: BrutalColors.red),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildTypeChip(String type, String label, Color color, String currentType, ValueChanged<String> onSelected) {
+    final isSelected = currentType == type;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => onSelected(type),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isSelected ? color : BrutalColors.surfaceElevated,
+            border: Border.all(color: BrutalColors.border, width: 2),
+          ),
+          child: Text(
+            label,
+            style: BrutalTypography.sticker.copyWith(
+              color: isSelected ? BrutalColors.textDark : BrutalColors.textPrimary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -275,9 +458,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         children: [
                           Text('CATEGORY', style: BrutalTypography.label),
                           InkWell(
-                            onTap: _showAddCategoryDialog,
+                            onTap: _showManageCategoriesDialog,
                             child: Text(
-                              '+ CUSTOM CATEGORY',
+                              '+ MANAGE',
                               style: BrutalTypography.sticker.copyWith(
                                 color: BrutalColors.primaryYellow,
                                 fontWeight: FontWeight.bold,
@@ -295,7 +478,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
-                            value: _selectedCategory,
+                            value: _categories.contains(_selectedCategory)
+                                ? _selectedCategory
+                                : (_categories.isNotEmpty ? _categories.first : null),
                             isExpanded: true,
                             dropdownColor: BrutalColors.surface,
                             icon: const Icon(Icons.arrow_drop_down, color: BrutalColors.textPrimary),
@@ -311,7 +496,25 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     ],
 
                     // Source Account
-                    Text(_selectedType == 'TRANSFER' ? 'TRANSFER FROM ACCOUNT' : 'PAYMENT ACCOUNT', style: BrutalTypography.label),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _selectedType == 'TRANSFER' ? 'TRANSFER FROM ACCOUNT' : 'PAYMENT ACCOUNT',
+                          style: BrutalTypography.label,
+                        ),
+                        InkWell(
+                          onTap: _showAddAccountDialog,
+                          child: Text(
+                            '+ MANAGE',
+                            style: BrutalTypography.sticker.copyWith(
+                              color: BrutalColors.cyan,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -321,7 +524,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
-                          value: _selectedAccount,
+                          value: _accounts.contains(_selectedAccount)
+                              ? _selectedAccount
+                              : (_accounts.isNotEmpty ? _accounts.first : null),
                           isExpanded: true,
                           dropdownColor: BrutalColors.surface,
                           icon: const Icon(Icons.arrow_drop_down, color: BrutalColors.textPrimary),
@@ -347,7 +552,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
-                            value: _selectedDestination,
+                            value: _accounts.contains(_selectedDestination)
+                                ? _selectedDestination
+                                : (_accounts.length > 1 ? _accounts[1] : (_accounts.isNotEmpty ? _accounts.first : null)),
                             isExpanded: true,
                             dropdownColor: BrutalColors.surface,
                             icon: const Icon(Icons.arrow_drop_down, color: BrutalColors.textPrimary),

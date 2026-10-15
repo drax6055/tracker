@@ -9,6 +9,7 @@ import '../../../../core/widgets/brutal_chip.dart';
 import '../../../../core/widgets/brutal_text_field.dart';
 import '../../../../core/widgets/brutal_toast.dart';
 import '../../../../core/widgets/brutal_toggle.dart';
+import '../../../../core/storage/secure_storage_service.dart';
 
 class AddAccountScreen extends StatefulWidget {
   const AddAccountScreen({super.key});
@@ -38,13 +39,35 @@ class _AddAccountScreenState extends State<AddAccountScreen> {
     super.dispose();
   }
 
-  void _handleSubmit() {
-    if (_nameController.text.trim().isEmpty) {
+  Future<void> _handleSubmit() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
       BrutalToast.showError(context, 'ACCOUNT NAME IS REQUIRED');
       return;
     }
-    BrutalToast.showSuccess(context, 'ACCOUNT CREATED SUCCESSFULLY');
-    context.pop();
+
+    final balance = double.tryParse(_balanceController.text.trim()) ?? 0.0;
+    final bankName = _bankNameController.text.trim();
+    final digits = _digitsController.text.trim();
+
+    String subtitle = bankName.isNotEmpty ? bankName : 'Active Account';
+    if (digits.isNotEmpty) subtitle += ' • Last 4: $digits';
+
+    final existing = await SecureStorageService.getAccounts();
+    existing.add({
+      'id': 'acc_${DateTime.now().millisecondsSinceEpoch}',
+      'title': name,
+      'subtitle': subtitle,
+      'balance': balance,
+      'type': _selectedType,
+      'digits': digits.isNotEmpty ? digits : 'ACC',
+    });
+    await SecureStorageService.saveAccounts(existing);
+
+    if (mounted) {
+      BrutalToast.showSuccess(context, 'ACCOUNT CREATED SUCCESSFULLY');
+      context.pop();
+    }
   }
 
   @override

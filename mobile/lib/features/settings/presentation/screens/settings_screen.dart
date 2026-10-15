@@ -180,6 +180,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
+  void _handlePurgeAccount() async {
+    BrutalDialog.show(
+      context: context,
+      title: 'PURGE VAULT ACCOUNT?',
+      content: Text(
+        'This action is irreversible. All transactions, accounts, and ledger data will be deleted permanently from the servers and your device.',
+        style: BrutalTypography.bodyMedium,
+      ),
+      confirmText: 'PERMANENTLY PURGE',
+      confirmColor: BrutalColors.red,
+      onConfirm: () async {
+        await ReminderNotificationService().cancelDailyReminder();
+        await ref.read(authControllerProvider.notifier).terminateAccountAndPurgeData();
+        if (mounted) {
+          BrutalToast.showWarning(context, 'ALL VAULT DATA AND ACCOUNT PURGED');
+          context.go('/login');
+        }
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
@@ -432,19 +453,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               backgroundColor: BrutalColors.red,
               textColor: BrutalColors.textPrimary,
               height: 48,
-              onPressed: () {
-                BrutalDialog.show(
-                  context: context,
-                  title: 'PURGE VAULT ACCOUNT?',
-                  content: Text(
-                    'This action is irreversible. All transactions, accounts, and ledger data will be deleted.',
-                    style: BrutalTypography.bodyMedium,
-                  ),
-                  confirmText: 'PERMANENTLY DELETE',
-                  confirmColor: BrutalColors.red,
-                  onConfirm: () {},
-                );
-              },
+              onPressed: _handlePurgeAccount,
             ),
           ],
         ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/storage/secure_storage_service.dart';
 import '../../../../core/theme/brutal_colors.dart';
 import '../../../../core/theme/brutal_typography.dart';
 import '../../../../core/widgets/brutal_app_bar.dart';
@@ -38,11 +39,153 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     'Bills',
   ];
 
+  final List<String> _customCategories = [];
+
   final List<String> _accounts = [
     'HDFC Salaried',
     'Cash Vault',
     'Infinia Metal',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCustomCategories();
+  }
+
+  Future<void> _loadCustomCategories() async {
+    final custom = await SecureStorageService.getCustomCategories();
+    if (custom.isNotEmpty) {
+      setState(() {
+        _customCategories.addAll(custom);
+        for (final c in custom) {
+          if (!_categories.contains(c)) {
+            _categories.add(c);
+          }
+        }
+      });
+    }
+  }
+
+  void _showAddCategoryDialog() {
+    final catController = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: BrutalColors.surface,
+      shape: const RoundedRectangleBorder(
+        side: BorderSide(color: BrutalColors.border, width: 3.0),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 24,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('CUSTOM CATEGORIES', style: BrutalTypography.headingSmall),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: BrutalColors.textPrimary),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    BrutalTextField(
+                      controller: catController,
+                      label: 'NEW CATEGORY NAME',
+                      hintText: 'e.g. Crypto & Stocks, Pet Care, Gym',
+                    ),
+                    const SizedBox(height: 14),
+                    BrutalButton(
+                      text: '+ ADD CATEGORY',
+                      backgroundColor: BrutalColors.primaryYellow,
+                      textColor: BrutalColors.textDark,
+                      height: 44,
+                      onPressed: () async {
+                        final val = catController.text.trim();
+                        if (val.isEmpty) {
+                          BrutalToast.showError(ctx, 'Category name cannot be empty');
+                          return;
+                        }
+                        if (_categories.contains(val)) {
+                          BrutalToast.showError(ctx, 'Category already exists');
+                          return;
+                        }
+
+                        setState(() {
+                          _categories.add(val);
+                          _customCategories.add(val);
+                          _selectedCategory = val;
+                        });
+                        SecureStorageService.saveCustomCategories(_customCategories);
+
+                        catController.clear();
+                        Navigator.pop(ctx);
+                        BrutalToast.showSuccess(context, 'CATEGORY "$val" CREATED & SELECTED');
+                      },
+                    ),
+                    if (_customCategories.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      Text('YOUR CUSTOM CATEGORIES', style: BrutalTypography.label),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _customCategories.map((cat) {
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: BrutalColors.surfaceElevated,
+                              border: Border.all(color: BrutalColors.border, width: 2),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(cat, style: BrutalTypography.bodySmall.copyWith(fontWeight: FontWeight.bold)),
+                                const SizedBox(width: 6),
+                                InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      _categories.remove(cat);
+                                      _customCategories.remove(cat);
+                                      if (_selectedCategory == cat) {
+                                        _selectedCategory = _categories.first;
+                                      }
+                                    });
+                                    SecureStorageService.saveCustomCategories(_customCategories);
+                                    setModalState(() {});
+                                    BrutalToast.showWarning(context, 'Category "$cat" removed');
+                                  },
+                                  child: const Icon(Icons.close, size: 14, color: BrutalColors.red),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   @override
   void dispose() {
@@ -127,7 +270,22 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
                     if (_selectedType != 'TRANSFER') ...[
                       // Category Selector
-                      Text('CATEGORY', style: BrutalTypography.label),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('CATEGORY', style: BrutalTypography.label),
+                          InkWell(
+                            onTap: _showAddCategoryDialog,
+                            child: Text(
+                              '+ CUSTOM CATEGORY',
+                              style: BrutalTypography.sticker.copyWith(
+                                color: BrutalColors.primaryYellow,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14),

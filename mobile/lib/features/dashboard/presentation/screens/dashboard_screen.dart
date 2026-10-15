@@ -8,6 +8,7 @@ import '../../../../core/widgets/brutal_app_bar.dart';
 import '../../../../core/widgets/brutal_button.dart';
 import '../../../../core/widgets/brutal_card.dart';
 import '../../../../core/widgets/brutal_chip.dart';
+import '../../../../core/widgets/brutal_toast.dart';
 import 'package:ledger_app/features/auth/presentation/controllers/auth_controller.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -25,6 +26,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   final double toPay = 18000.0;
   final double toReceive = 35000.0;
 
+  bool _isMasked = false;
+
+  String _formatAmount(double amount, String currency, {bool showDecimals = true}) {
+    if (_isMasked) return '$currency ***';
+    return CurrencyFormatter.format(amount, symbol: currency, showDecimals: showDecimals);
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
@@ -38,6 +46,22 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       appBar: BrutalAppBar(
         title: 'LEDGER // ${user?.name ?? "OPERATOR"}',
         actions: [
+          IconButton(
+            icon: Icon(
+              _isMasked ? Icons.visibility_off : Icons.visibility,
+              color: _isMasked ? BrutalColors.primaryYellow : BrutalColors.textPrimary,
+            ),
+            tooltip: _isMasked ? 'Show Figures' : 'Hide Figures (***)',
+            onPressed: () {
+              setState(() => _isMasked = !_isMasked);
+              BrutalToast.showInfo(
+                context,
+                _isMasked
+                    ? 'SAFETY MODE: FIGURES MASKED (***)'
+                    : 'SAFETY MODE: FIGURES VISIBLE',
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined, color: BrutalColors.textPrimary),
             onPressed: () => context.push('/settings'),
@@ -72,11 +96,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text('NET WORTH', style: BrutalTypography.sticker.copyWith(color: BrutalColors.textSecondary)),
-                          const BrutalChip(
-                            label: 'LIVE ASSETS',
-                            backgroundColor: BrutalColors.lime,
-                            textColor: BrutalColors.textDark,
-                            shadowOffset: 0,
+                          InkWell(
+                            onTap: () => setState(() => _isMasked = !_isMasked),
+                            child: BrutalChip(
+                              label: _isMasked ? '🔒 *** MASKED' : '👁️ VISIBLE',
+                              backgroundColor: _isMasked ? BrutalColors.primaryYellow : BrutalColors.lime,
+                              textColor: BrutalColors.textDark,
+                              shadowOffset: 0,
+                            ),
                           ),
                         ],
                       ),
@@ -84,7 +111,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
-                          CurrencyFormatter.format(netWorth, symbol: currency),
+                          _formatAmount(netWorth, currency),
                           style: BrutalTypography.amountHero.copyWith(
                             fontSize: 40,
                             color: BrutalColors.primaryYellow,
@@ -125,7 +152,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                               fit: BoxFit.scaleDown,
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                CurrencyFormatter.format(thisMonthIncome, symbol: currency, showDecimals: false),
+                                _formatAmount(thisMonthIncome, currency, showDecimals: false),
                                 style: BrutalTypography.amountMedium.copyWith(color: BrutalColors.textPrimary),
                               ),
                             ),
@@ -150,7 +177,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                               fit: BoxFit.scaleDown,
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                CurrencyFormatter.format(thisMonthExpense, symbol: currency, showDecimals: false),
+                                _formatAmount(thisMonthExpense, currency, showDecimals: false),
                                 style: BrutalTypography.amountMedium.copyWith(color: BrutalColors.textPrimary),
                               ),
                             ),
@@ -175,7 +202,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                               fit: BoxFit.scaleDown,
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                '$savingsRate%',
+                                _isMasked ? '***%' : '$savingsRate%',
                                 style: BrutalTypography.amountMedium.copyWith(color: BrutalColors.primaryYellow),
                               ),
                             ),
@@ -207,7 +234,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                 children: [
                                   Text('TO PAY', style: BrutalTypography.sticker.copyWith(color: BrutalColors.textMuted)),
                                   Text(
-                                    CurrencyFormatter.format(toPay, symbol: currency, showDecimals: false),
+                                    _formatAmount(toPay, currency, showDecimals: false),
                                     style: BrutalTypography.amountSmall.copyWith(color: BrutalColors.orange),
                                   ),
                                 ],
@@ -235,7 +262,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                 children: [
                                   Text('RECEIVABLE', style: BrutalTypography.sticker.copyWith(color: BrutalColors.textMuted)),
                                   Text(
-                                    CurrencyFormatter.format(toReceive, symbol: currency, showDecimals: false),
+                                    _formatAmount(toReceive, currency, showDecimals: false),
                                     style: BrutalTypography.amountSmall.copyWith(color: BrutalColors.lime),
                                   ),
                                 ],
@@ -397,7 +424,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         Text(label, style: BrutalTypography.sticker.copyWith(color: color)),
         const SizedBox(height: 2),
         Text(
-          CurrencyFormatter.format(val, symbol: currency, showDecimals: false),
+          _formatAmount(val, currency, showDecimals: false),
           style: BrutalTypography.amountSmall.copyWith(color: BrutalColors.textPrimary),
         ),
       ],
@@ -449,7 +476,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  CurrencyFormatter.format(balance, symbol: currency, showDecimals: false),
+                  _formatAmount(balance, currency, showDecimals: false),
                   style: BrutalTypography.amountMedium.copyWith(fontSize: 16),
                 ),
                 if (subtext != null)
@@ -519,7 +546,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ),
             const SizedBox(width: 8),
             Text(
-              '$prefix${CurrencyFormatter.format(amount, symbol: currency, showDecimals: false)}',
+              _isMasked ? '$prefix$currency ***' : '$prefix${CurrencyFormatter.format(amount, symbol: currency, showDecimals: false)}',
               style: BrutalTypography.amountSmall.copyWith(
                 color: amountColor,
                 fontWeight: FontWeight.bold,

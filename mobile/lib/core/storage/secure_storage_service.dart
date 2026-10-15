@@ -78,6 +78,24 @@ class SecureStorageService {
     return {'hour': hour, 'minute': minute};
   }
 
+  // Custom Categories
+  static const String _customCategoriesKey = 'ledger_custom_categories';
+
+  static Future<void> saveCustomCategories(List<String> categories) async {
+    await _storage.write(key: _customCategoriesKey, value: jsonEncode(categories));
+  }
+
+  static Future<List<String>> getCustomCategories() async {
+    final str = await _storage.read(key: _customCategoriesKey);
+    if (str == null) return [];
+    try {
+      final list = jsonDecode(str) as List<dynamic>;
+      return list.map((e) => e.toString()).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
   // Clear All (Logout)
   static Future<void> clearAll() async {
     await _storage.deleteAll();

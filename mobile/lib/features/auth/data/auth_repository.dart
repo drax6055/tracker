@@ -160,4 +160,14 @@ class AuthRepository {
       return null;
     }
   }
+
+  Future<void> terminateAccountAndPurgeData() async {
+    try {
+      await _client.dio.delete(ApiEndpoints.userMe);
+    } catch (_) {
+      // Proceed with local wipe even if server error
+    } finally {
+      await SecureStorageService.clearAll();
+    }
+  }
 }

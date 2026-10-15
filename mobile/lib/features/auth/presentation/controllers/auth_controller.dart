@@ -173,4 +173,10 @@ class AuthController extends Notifier<AuthState> {
     await _repo.logout();
     state = const AuthState(isAuthenticated: false);
   }
+
+  Future<void> terminateAccountAndPurgeData() async {
+    state = state.copyWith(isLoading: true);
+    await _repo.terminateAccountAndPurgeData();
+    state = const AuthState(isAuthenticated: false);
+  }
 }

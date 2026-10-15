@@ -114,23 +114,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         title: 'LEDGER // ${user?.name ?? "OPERATOR"}',
         actions: [
           IconButton(
-            icon: Icon(
-              _isMasked ? Icons.visibility_off : Icons.visibility,
-              color: _isMasked ? BrutalColors.primaryYellow : BrutalColors.textPrimary,
-            ),
-            tooltip: _isMasked ? 'Show Figures' : 'Hide Figures (***)',
-            onPressed: () {
-              setState(() => _isMasked = !_isMasked);
-              BrutalToast.showInfo(
-                context,
-                _isMasked
-                    ? 'SAFETY MODE: FIGURES MASKED (***)'
-                    : 'SAFETY MODE: FIGURES VISIBLE',
-              );
-            },
-          ),
-          IconButton(
             icon: const Icon(Icons.settings_outlined, color: BrutalColors.textPrimary),
+            tooltip: 'Vault Preferences & Settings',
             onPressed: () => context.push('/settings'),
           ),
           const SizedBox(width: 8),
@@ -164,7 +149,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         children: [
                           Text('NET WORTH', style: BrutalTypography.sticker.copyWith(color: BrutalColors.textSecondary)),
                           InkWell(
-                            onTap: () => setState(() => _isMasked = !_isMasked),
+                            onTap: () {
+                              setState(() => _isMasked = !_isMasked);
+                              BrutalToast.showInfo(
+                                context,
+                                _isMasked
+                                    ? 'SAFETY MODE: FIGURES MASKED (***)'
+                                    : 'SAFETY MODE: FIGURES VISIBLE',
+                              );
+                            },
                             child: BrutalChip(
                               label: _isMasked ? '🔒 *** MASKED' : '👁️ VISIBLE',
                               backgroundColor: _isMasked ? BrutalColors.primaryYellow : BrutalColors.lime,

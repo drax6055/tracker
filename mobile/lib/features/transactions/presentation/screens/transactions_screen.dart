@@ -8,6 +8,7 @@ import '../../../../core/utils/currency_formatter.dart';
 import '../../../../core/widgets/brutal_app_bar.dart';
 import '../../../../core/widgets/brutal_card.dart';
 import '../../../../core/widgets/brutal_chip.dart';
+import '../../../../core/storage/secure_storage_service.dart';
 import 'package:ledger_app/features/auth/presentation/controllers/auth_controller.dart';
 
 class TransactionsScreen extends ConsumerStatefulWidget {
@@ -22,68 +23,21 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   final _searchController = TextEditingController();
   DateTimeRange? _selectedDateRange;
 
-  final List<Map<String, dynamic>> _demoTransactions = [
-    {
-      'title': 'Salary Credit',
-      'type': 'INCOME',
-      'category': 'Salary',
-      'account': 'HDFC Salaried',
-      'date': '14 Oct 2026, 10:30 AM',
-      'timestamp': DateTime(2026, 10, 14, 10, 30),
-      'amount': 125000.0,
-      'color': BrutalColors.green,
-    },
-    {
-      'title': 'Whole Foods Groceries',
-      'type': 'EXPENSE',
-      'category': 'Food & Dining',
-      'account': 'Infinia Metal',
-      'date': '13 Oct 2026, 8:15 PM',
-      'timestamp': DateTime(2026, 10, 13, 20, 15),
-      'amount': 3450.0,
-      'color': BrutalColors.red,
-    },
-    {
-      'title': 'ATM Cash Withdrawal',
-      'type': 'TRANSFER',
-      'category': 'Transfer',
-      'account': 'HDFC -> Cash Vault',
-      'date': '12 Oct 2026, 4:00 PM',
-      'timestamp': DateTime(2026, 10, 12, 16, 0),
-      'amount': 10000.0,
-      'color': BrutalColors.cyan,
-    },
-    {
-      'title': 'Uber Airport Taxi',
-      'type': 'EXPENSE',
-      'category': 'Travel',
-      'account': 'Cash Vault',
-      'date': '12 Oct 2026, 2:45 PM',
-      'timestamp': DateTime(2026, 10, 12, 14, 45),
-      'amount': 850.0,
-      'color': BrutalColors.red,
-    },
-    {
-      'title': 'Freelance Web Design',
-      'type': 'INCOME',
-      'category': 'Freelance',
-      'account': 'HDFC Salaried',
-      'date': '11 Oct 2026, 6:30 PM',
-      'timestamp': DateTime(2026, 10, 11, 18, 30),
-      'amount': 45000.0,
-      'color': BrutalColors.green,
-    },
-    {
-      'title': 'Auto Loan Monthly EMI',
-      'type': 'EXPENSE',
-      'category': 'Loan EMI',
-      'account': 'HDFC Salaried',
-      'date': '10 Oct 2026, 9:00 AM',
-      'timestamp': DateTime(2026, 10, 10, 9, 0),
-      'amount': 14500.0,
-      'color': BrutalColors.orange,
-    },
-  ];
+  List<Map<String, dynamic>> _transactions = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTransactions();
+  }
+
+  Future<void> _loadTransactions() async {
+    final list = await SecureStorageService.getTransactions();
+    if (!mounted) return;
+    setState(() {
+      _transactions = list;
+    });
+  }
 
   Future<void> _pickDateRange() async {
     final picked = await showDateRangePicker(
@@ -129,19 +83,26 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     final authState = ref.watch(authControllerProvider);
     final currency = authState.user?.currencySymbol ?? '₹';
 
-    final filtered = _demoTransactions.where((item) {
+    final filtered = _transactions.where((item) {
       if (_selectedFilter != 'ALL' && item['type'] != _selectedFilter) return false;
       if (_searchController.text.isNotEmpty) {
         final query = _searchController.text.toLowerCase();
-        final title = (item['title'] as String).toLowerCase();
-        final category = (item['category'] as String).toLowerCase();
+        final title = (item['title'] ?? '').toString().toLowerCase();
+        final category = (item['category'] ?? '').toString().toLowerCase();
         if (!title.contains(query) && !category.contains(query)) return false;
       }
-      if (_selectedDateRange != null) {
-        final txDate = item['timestamp'] as DateTime;
-        final start = DateTime(_selectedDateRange!.start.year, _selectedDateRange!.start.month, _selectedDateRange!.start.day);
-        final end = DateTime(_selectedDateRange!.end.year, _selectedDateRange!.end.month, _selectedDateRange!.end.day, 23, 59, 59);
-        if (txDate.isBefore(start) || txDate.isAfter(end)) return false;
+      if (_selectedDateRange != null && item['timestamp'] != null) {
+        DateTime? txDate;
+        if (item['timestamp'] is DateTime) {
+          txDate = item['timestamp'] as DateTime;
+        } else {
+          txDate = DateTime.tryParse(item['timestamp'].toString());
+        }
+        if (txDate != null) {
+          final start = DateTime(_selectedDateRange!.start.year, _selectedDateRange!.start.month, _selectedDateRange!.start.day);
+          final end = DateTime(_selectedDateRange!.end.year, _selectedDateRange!.end.month, _selectedDateRange!.end.day, 23, 59, 59);
+          if (txDate.isBefore(start) || txDate.isAfter(end)) return false;
+        }
       }
       return true;
     }).toList();
@@ -163,7 +124,10 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.add, color: BrutalColors.primaryYellow, size: 28),
-            onPressed: () => context.push('/add-transaction'),
+            onPressed: () async {
+              await context.push('/add-transaction');
+              _loadTransactions();
+            },
           ),
           const SizedBox(width: 8),
         ],
@@ -255,19 +219,45 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
 
             // Transactions list
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: filtered.length,
-                itemBuilder: (context, index) {
-                  final item = filtered[index];
-                  final isIncome = item['type'] == 'INCOME';
-                  final isTransfer = item['type'] == 'TRANSFER';
-                  final prefix = isIncome ? '+' : isTransfer ? '⇄ ' : '-';
-                  final amountColor = isIncome
-                      ? BrutalColors.green
-                      : isTransfer
-                          ? BrutalColors.cyan
-                          : BrutalColors.red;
+              child: filtered.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.receipt_long, size: 48, color: BrutalColors.textSecondary),
+                            const SizedBox(height: 12),
+                            Text(
+                              _transactions.isEmpty ? 'NO TRANSACTIONS RECORDED YET' : 'NO TRANSACTIONS MATCH FILTER',
+                              style: BrutalTypography.headingSmall,
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _transactions.isEmpty
+                                  ? 'Tap the + button above to log your first ledger entry.'
+                                  : 'Try adjusting your search or date filters.',
+                              style: BrutalTypography.bodyMedium.copyWith(color: BrutalColors.textSecondary),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
+                        final item = filtered[index];
+                        final isIncome = item['type'] == 'INCOME';
+                        final isTransfer = item['type'] == 'TRANSFER';
+                        final prefix = isIncome ? '+' : isTransfer ? '⇄ ' : '-';
+                        final amountColor = isIncome
+                            ? BrutalColors.green
+                            : isTransfer
+                                ? BrutalColors.cyan
+                                : BrutalColors.red;
 
                   return Container(
                     margin: const EdgeInsets.only(bottom: 12),
@@ -316,7 +306,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                             ),
                           ),
                           Text(
-                            '$prefix${CurrencyFormatter.format(item['amount'], symbol: currency, showDecimals: false)}',
+                            '$prefix${CurrencyFormatter.format((item['amount'] as num?)?.toDouble() ?? 0.0, symbol: currency, showDecimals: false)}',
                             style: BrutalTypography.amountSmall.copyWith(
                               color: amountColor,
                               fontWeight: FontWeight.bold,

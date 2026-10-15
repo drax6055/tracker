@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import '../storage/secure_storage_service.dart';
 
 class PdfReportService {
   PdfReportService._();
@@ -16,6 +17,10 @@ class PdfReportService {
   }) async {
     final pdf = pw.Document();
     final nowFormatted = DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.now());
+
+    final accounts = await SecureStorageService.getAccounts();
+    final transactions = await SecureStorageService.getTransactions();
+    final debts = await SecureStorageService.getDebts();
 
     // Clean Brutalist Palette
     const black = PdfColor.fromInt(0xFF000000);
@@ -164,12 +169,20 @@ class PdfReportService {
             cellStyle: const pw.TextStyle(fontSize: 9),
             cellPadding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             headers: ['ACCOUNT NAME', 'TYPE', 'IDENTIFIER', 'STATUS / NOTE', 'BALANCE'],
-            data: [
-              ['HDFC Salaried Account', 'BANK ACCOUNT', '•••• 4821', 'Active Salary Credit', '$currencySymbol 4,25,000.00'],
-              ['Physical Cash Vault', 'CASH WALLET', 'CASH SAFE', 'Liquid Reserve', '$currencySymbol 24,500.00'],
-              ['Infinia Metal Card', 'CREDIT CARD', '•••• 9920', 'Limit: $currencySymbol 5,00,000 (9.7% Used)', '$currencySymbol 48,500.00'],
-              ['Auto Loan (SBI)', 'LOAN / DEBT', 'SBI AUTO', 'EMI: $currencySymbol 14,500 Due 5th', '-$currencySymbol 3,56,300.00'],
-            ],
+            data: accounts.isEmpty
+                ? [
+                    ['No accounts created yet in vault', '-', '-', 'Active', '$currencySymbol 0.00']
+                  ]
+                : accounts.map((a) {
+                    final bal = (a['balance'] as num?)?.toDouble() ?? 0.0;
+                    return [
+                      (a['title'] ?? 'Account').toString(),
+                      (a['type'] ?? 'BANK').toString(),
+                      (a['digits'] ?? '').toString().isNotEmpty ? '•••• ${a['digits']}' : 'VAULT',
+                      (a['subtitle'] ?? 'Active').toString(),
+                      '$currencySymbol ${bal.toStringAsFixed(2)}',
+                    ];
+                  }).toList(),
           ),
           pw.SizedBox(height: 24),
 
@@ -203,13 +216,23 @@ class PdfReportService {
             cellStyle: const pw.TextStyle(fontSize: 8.5),
             cellPadding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
             headers: ['DATE', 'TRANSACTION DESCRIPTION', 'CATEGORY', 'ACCOUNT', 'FLOW', 'AMOUNT'],
-            data: [
-              ['14 Oct 2026, 10:30 AM', 'Monthly Salary Deposit', 'Salary', 'HDFC Salaried', 'INFLOW', '+$currencySymbol 1,25,000.00'],
-              ['13 Oct 2026, 08:15 PM', 'Whole Foods Organic Groceries', 'Food', 'Infinia Metal', 'OUTFLOW', '-$currencySymbol 3,450.00'],
-              ['12 Oct 2026, 04:00 PM', 'ATM Cash Safe Withdrawal', 'Transfer', 'HDFC -> Vault', 'TRANSFER', '$currencySymbol 10,000.00'],
-              ['12 Oct 2026, 02:45 PM', 'Uber Ride Airport Terminal', 'Travel', 'Cash Vault', 'OUTFLOW', '-$currencySymbol 850.00'],
-              ['10 Oct 2026, 09:00 AM', 'Car Loan Fixed Monthly EMI', 'Loan EMI', 'HDFC Salaried', 'OUTFLOW', '-$currencySymbol 14,500.00'],
-            ],
+            data: transactions.isEmpty
+                ? [
+                    ['-', 'No transactions logged in this period', '-', '-', '-', '$currencySymbol 0.00']
+                  ]
+                : transactions.take(15).map((t) {
+                    final type = (t['type'] ?? 'EXPENSE').toString();
+                    final amt = (t['amount'] as num?)?.toDouble() ?? 0.0;
+                    final prefix = type == 'INCOME' ? '+' : type == 'EXPENSE' ? '-' : '';
+                    return [
+                      (t['date'] ?? '').toString(),
+                      (t['title'] ?? 'Entry').toString(),
+                      (t['category'] ?? 'General').toString(),
+                      (t['account'] ?? 'Vault').toString(),
+                      type == 'INCOME' ? 'INFLOW' : type == 'EXPENSE' ? 'OUTFLOW' : 'TRANSFER',
+                      '$prefix$currencySymbol ${amt.toStringAsFixed(2)}',
+                    ];
+                  }).toList(),
           ),
           pw.SizedBox(height: 24),
 
@@ -223,11 +246,23 @@ class PdfReportService {
             cellStyle: const pw.TextStyle(fontSize: 8.5),
             cellPadding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
             headers: ['COUNTERPARTY', 'TYPE', 'ORIGINAL LOAN', 'REMAINING DUE', 'DUE DATE', 'STATUS'],
-            data: [
-              ['Peter Parker', 'LENT (TO RECEIVE)', '$currencySymbol 50,000.00', '$currencySymbol 35,000.00', '20 Oct 2026', 'Partially Settled'],
-              ['Tony Stark', 'BORROWED (I OWE)', '$currencySymbol 18,000.00', '$currencySymbol 18,000.00', '25 Oct 2026', 'Pending Payment'],
-              ['Clark Kent', 'LENT (TO RECEIVE)', '$currencySymbol 12,000.00', '$currencySymbol 0.00', '01 Oct 2026', 'Fully Cleared'],
-            ],
+            data: debts.isEmpty
+                ? [
+                    ['No debts or receivables recorded', '-', '-', '-', '-', 'None']
+                  ]
+                : debts.map((d) {
+                    final orig = (d['originalAmount'] as num?)?.toDouble() ?? 0.0;
+                    final rem = (d['remainingAmount'] as num?)?.toDouble() ?? 0.0;
+                    final type = (d['type'] ?? 'BORROWED').toString();
+                    return [
+                      (d['person'] ?? 'Person').toString(),
+                      type == 'LENT' ? 'LENT (TO RECEIVE)' : 'BORROWED (I OWE)',
+                      '$currencySymbol ${orig.toStringAsFixed(2)}',
+                      '$currencySymbol ${rem.toStringAsFixed(2)}',
+                      (d['dueDate'] ?? '').toString(),
+                      (d['status'] ?? 'ACTIVE').toString(),
+                    ];
+                  }).toList(),
           ),
         ],
       ),

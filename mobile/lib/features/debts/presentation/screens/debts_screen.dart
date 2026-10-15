@@ -10,6 +10,7 @@ import '../../../../core/widgets/brutal_card.dart';
 import '../../../../core/widgets/brutal_chip.dart';
 import '../../../../core/widgets/brutal_dialog.dart';
 import '../../../../core/widgets/brutal_toast.dart';
+import '../../../../core/storage/secure_storage_service.dart';
 import 'package:ledger_app/features/auth/presentation/controllers/auth_controller.dart';
 
 class DebtsScreen extends ConsumerStatefulWidget {
@@ -22,35 +23,21 @@ class DebtsScreen extends ConsumerStatefulWidget {
 class _DebtsScreenState extends ConsumerState<DebtsScreen> {
   String _selectedTab = 'BORROWED'; // BORROWED (To Pay) or LENT (To Receive)
 
-  final List<Map<String, dynamic>> _demoDebts = [
-    {
-      'person': 'Peter Parker',
-      'type': 'LENT',
-      'originalAmount': 50000.0,
-      'remainingAmount': 35000.0,
-      'dueDate': '20 Oct 2026',
-      'status': 'PARTIALLY_PAID',
-      'notes': 'Camera equipment loan',
-    },
-    {
-      'person': 'Tony Stark',
-      'type': 'BORROWED',
-      'originalAmount': 18000.0,
-      'remainingAmount': 18000.0,
-      'dueDate': '25 Oct 2026',
-      'status': 'PENDING',
-      'notes': 'Lab server hosting costs',
-    },
-    {
-      'person': 'Clark Kent',
-      'type': 'LENT',
-      'originalAmount': 12000.0,
-      'remainingAmount': 0.0,
-      'dueDate': '01 Oct 2026',
-      'status': 'SETTLED',
-      'notes': 'Conference ticket',
-    },
-  ];
+  List<Map<String, dynamic>> _debts = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDebts();
+  }
+
+  Future<void> _loadDebts() async {
+    final list = await SecureStorageService.getDebts();
+    if (!mounted) return;
+    setState(() {
+      _debts = list;
+    });
+  }
 
   void _showPartialPaymentDialog(Map<String, dynamic> debt) {
     final paymentController = TextEditingController();
@@ -78,7 +65,20 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
       ),
       confirmText: 'SETTLE AMOUNT',
       onConfirm: () {
-        BrutalToast.showSuccess(context, 'PAYMENT LOGGED SUCCESSFULLY');
+        final paidAmt = double.tryParse(paymentController.text.trim()) ?? 0.0;
+        if (paidAmt > 0) {
+          final currentRemaining = (debt['remainingAmount'] as num?)?.toDouble() ?? 0.0;
+          final newRemaining = (currentRemaining - paidAmt).clamp(0.0, double.infinity);
+          debt['remainingAmount'] = newRemaining;
+          if (newRemaining == 0.0) {
+            debt['status'] = 'SETTLED';
+          } else {
+            debt['status'] = 'PARTIALLY_PAID';
+          }
+          SecureStorageService.saveDebts(_debts);
+          setState(() {});
+          BrutalToast.showSuccess(context, 'PAYMENT LOGGED SUCCESSFULLY');
+        }
       },
     );
   }
@@ -88,7 +88,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
     final authState = ref.watch(authControllerProvider);
     final currency = authState.user?.currencySymbol ?? '₹';
 
-    final filtered = _demoDebts.where((d) => d['type'] == _selectedTab).toList();
+    final filtered = _debts.where((d) => d['type'] == _selectedTab).toList();
 
     return Scaffold(
       backgroundColor: BrutalColors.background,
@@ -98,7 +98,10 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.add, color: BrutalColors.primaryYellow, size: 28),
-            onPressed: () => context.push('/add-debt'),
+            onPressed: () async {
+              await context.push('/add-debt');
+              _loadDebts();
+            },
           ),
           const SizedBox(width: 8),
         ],
@@ -141,10 +144,36 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
 
             // Debts List
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: filtered.length,
-                itemBuilder: (context, index) {
+              child: filtered.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.people_alt_outlined, size: 48, color: BrutalColors.textSecondary),
+                            const SizedBox(height: 12),
+                            Text(
+                              _debts.isEmpty ? 'NO DEBT RECORDS YET' : 'NO ${_selectedTab == 'BORROWED' ? 'PAYABLES' : 'RECEIVABLES'} FOUND',
+                              style: BrutalTypography.headingSmall,
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _debts.isEmpty
+                                  ? 'Tap the + button to track money you owe or are owed.'
+                                  : 'Switch between tabs or add a new record.',
+                              style: BrutalTypography.bodyMedium.copyWith(color: BrutalColors.textSecondary),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
                   final debt = filtered[index];
                   final isSettled = debt['status'] == 'SETTLED';
                   final accent = _selectedTab == 'BORROWED' ? BrutalColors.orange : BrutalColors.lime;

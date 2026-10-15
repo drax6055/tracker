@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../../../core/storage/secure_storage_service.dart';
 import '../../../../core/theme/brutal_colors.dart';
 import '../../../../core/theme/brutal_typography.dart';
@@ -378,7 +379,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     super.dispose();
   }
 
-  void _handleSubmit() {
+  Future<void> _handleSubmit() async {
     if (_amountController.text.trim().isEmpty) {
       BrutalToast.showError(context, 'AMOUNT IS REQUIRED');
       return;
@@ -395,8 +396,36 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       BrutalToast.showError(context, 'TRANSFER REQUIRES AT LEAST 2 VAULT ACCOUNTS');
       return;
     }
-    BrutalToast.showSuccess(context, 'TRANSACTION RECORDED');
-    context.pop();
+
+    final amount = double.tryParse(_amountController.text.trim()) ?? 0.0;
+    final now = DateTime.now();
+    final dateStr = DateFormat('d MMM yyyy, h:mm a').format(now);
+    final title = _titleController.text.trim().isNotEmpty
+        ? _titleController.text.trim()
+        : (_selectedType == 'TRANSFER' ? 'Transfer to $_selectedDestination' : _selectedCategory);
+
+    final accountField = _selectedType == 'TRANSFER'
+        ? '$_selectedAccount -> $_selectedDestination'
+        : _selectedAccount;
+
+    final newTx = {
+      'id': 'tx_${now.millisecondsSinceEpoch}',
+      'title': title,
+      'type': _selectedType,
+      'category': _selectedType == 'TRANSFER' ? 'Transfer' : _selectedCategory,
+      'account': accountField,
+      'date': dateStr,
+      'timestamp': now.toIso8601String(),
+      'amount': amount,
+      'note': _noteController.text.trim(),
+    };
+
+    await SecureStorageService.addTransaction(newTx);
+
+    if (mounted) {
+      BrutalToast.showSuccess(context, 'TRANSACTION RECORDED');
+      context.pop();
+    }
   }
 
   @override

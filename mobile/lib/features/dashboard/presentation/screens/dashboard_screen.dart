@@ -20,27 +20,74 @@ class DashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
-  // Demo / local state representations until full backend sync
-  final double netWorth = 845200.0;
-  final double thisMonthIncome = 125000.0;
-  final double thisMonthExpense = 48500.0;
-  final double toPay = 18000.0;
-  final double toReceive = 35000.0;
+  double netWorth = 0.0;
+  double thisMonthIncome = 0.0;
+  double thisMonthExpense = 0.0;
+  double toPay = 0.0;
+  double toReceive = 0.0;
 
   bool _isMasked = false;
   List<Map<String, dynamic>> _vaultAccounts = [];
+  List<Map<String, dynamic>> _recentTransactions = [];
 
   @override
   void initState() {
     super.initState();
-    _loadVaultAccounts();
+    _loadDashboardData();
   }
 
-  Future<void> _loadVaultAccounts() async {
+  Future<void> _loadDashboardData() async {
     final accs = await SecureStorageService.getAccounts();
+    final txs = await SecureStorageService.getTransactions();
+    final debts = await SecureStorageService.getDebts();
+    final isDemo = await SecureStorageService.isCurrentUserDemo();
+
     if (!mounted) return;
     setState(() {
       _vaultAccounts = accs;
+      _recentTransactions = txs;
+
+      if (isDemo && accs.isEmpty && txs.isEmpty) {
+        netWorth = 845200.0;
+        thisMonthIncome = 125000.0;
+        thisMonthExpense = 48500.0;
+        toPay = 18000.0;
+        toReceive = 35000.0;
+      } else {
+        double nw = 0.0;
+        for (final a in accs) {
+          final bal = (a['balance'] as num?)?.toDouble() ?? 0.0;
+          final type = (a['type'] ?? 'BANK').toString();
+          if (type == 'LOAN' || type == 'CREDIT_CARD') {
+            nw -= bal;
+          } else {
+            nw += bal;
+          }
+        }
+        netWorth = nw;
+
+        double inc = 0.0;
+        double exp = 0.0;
+        for (final t in txs) {
+          final amt = (t['amount'] as num?)?.toDouble() ?? 0.0;
+          final type = (t['type'] ?? 'EXPENSE').toString();
+          if (type == 'INCOME') inc += amt;
+          if (type == 'EXPENSE') exp += amt;
+        }
+        thisMonthIncome = inc;
+        thisMonthExpense = exp;
+
+        double tp = 0.0;
+        double tr = 0.0;
+        for (final d in debts) {
+          final amt = (d['remainingAmount'] as num?)?.toDouble() ?? 0.0;
+          final type = (d['type'] ?? 'BORROWED').toString();
+          if (type == 'BORROWED') tp += amt;
+          if (type == 'LENT') tr += amt;
+        }
+        toPay = tp;
+        toReceive = tr;
+      }
     });
   }
 
@@ -300,7 +347,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     GestureDetector(
                       onTap: () async {
                         await context.push('/accounts');
-                        _loadVaultAccounts();
+                        _loadDashboardData();
                       },
                       child: Text(
                         'VIEW ALL (${_vaultAccounts.length}) →',
@@ -314,7 +361,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   GestureDetector(
                     onTap: () async {
                       await context.push('/accounts');
-                      _loadVaultAccounts();
+                      _loadDashboardData();
                     },
                     child: Container(
                       height: 80,
@@ -376,9 +423,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   children: [
                     Text('RECENT LEDGER', style: BrutalTypography.headingMedium),
                     GestureDetector(
-                      onTap: () => context.push('/transactions'),
+                      onTap: () async {
+                        await context.push('/transactions');
+                        _loadDashboardData();
+                      },
                       child: Text(
-                        'VIEW ALL →',
+                        'VIEW ALL (${_recentTransactions.length}) →',
                         style: BrutalTypography.sticker.copyWith(color: BrutalColors.primaryYellow),
                       ),
                     ),
@@ -386,42 +436,36 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                _buildTransactionTile(
-                  title: 'Salary Deposit',
-                  category: 'Income',
-                  account: 'HDFC Salaried',
-                  date: 'Today, 10:30 AM',
-                  amount: 125000.0,
-                  isIncome: true,
-                  currency: currency,
-                ),
-                _buildTransactionTile(
-                  title: 'Whole Foods Grocery',
-                  category: 'Food',
-                  account: 'Infinia Metal',
-                  date: 'Yesterday, 8:15 PM',
-                  amount: 3450.0,
-                  isIncome: false,
-                  currency: currency,
-                ),
-                _buildTransactionTile(
-                  title: 'Uber Ride - Airport',
-                  category: 'Travel',
-                  account: 'Cash Vault',
-                  date: '12 Oct, 2:45 PM',
-                  amount: 850.0,
-                  isIncome: false,
-                  currency: currency,
-                ),
-                _buildTransactionTile(
-                  title: 'Car Loan Monthly EMI',
-                  category: 'Loan EMI',
-                  account: 'HDFC Salaried',
-                  date: '10 Oct, 9:00 AM',
-                  amount: 14500.0,
-                  isIncome: false,
-                  currency: currency,
-                ),
+                if (_recentTransactions.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: BrutalColors.surface,
+                      border: Border.all(color: BrutalColors.border, width: 2.5),
+                    ),
+                    child: Text(
+                      'NO LEDGER ENTRIES YET // TAP + TO RECORD FIRST TRANSACTION',
+                      style: BrutalTypography.bodySmall.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: BrutalColors.textSecondary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  )
+                else
+                  ..._recentTransactions.take(5).map((t) {
+                    final type = (t['type'] ?? 'EXPENSE').toString();
+                    return _buildTransactionTile(
+                      title: (t['title'] ?? 'Entry').toString(),
+                      category: (t['category'] ?? 'General').toString(),
+                      account: (t['account'] ?? 'Vault').toString(),
+                      date: (t['date'] ?? '').toString(),
+                      amount: (t['amount'] as num?)?.toDouble() ?? 0.0,
+                      isIncome: type == 'INCOME',
+                      currency: currency,
+                    );
+                  }),
 
                 const SizedBox(height: 80), // Padding for FAB
               ],

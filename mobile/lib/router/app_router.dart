@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../features/accounts/presentation/screens/accounts_screen.dart';
 import '../features/accounts/presentation/screens/add_account_screen.dart';
+import '../features/auth/presentation/controllers/auth_controller.dart';
 import '../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../features/auth/presentation/screens/login_screen.dart';
 import '../features/auth/presentation/screens/register_screen.dart';
@@ -19,10 +21,75 @@ import '../features/transactions/presentation/screens/transactions_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
+class RouterNotifier extends ChangeNotifier {
+  final Ref _ref;
+
+  RouterNotifier(this._ref) {
+    _ref.listen<AuthState>(authControllerProvider, (previous, next) {
+      notifyListeners();
+    });
+  }
+
+  String? redirect(BuildContext context, GoRouterState state) {
+    final authState = _ref.read(authControllerProvider);
+    final loc = state.matchedLocation;
+
+    final isAuthRoute = loc == '/login' ||
+        loc == '/register' ||
+        loc == '/forgot-password' ||
+        loc == '/verify-otp' ||
+        loc == '/reset-password';
+
+    // 1. Initial auth loading state:
+    // If navigating directly to a deep URL while auth is checking secure storage,
+    // show splash to prevent unauthenticated access.
+    if (authState.isLoading) {
+      return loc == '/' ? null : '/';
+    }
+
+    // 2. Unauthenticated User Guard:
+    if (!authState.isAuthenticated) {
+      if (!isAuthRoute) {
+        return '/login';
+      }
+      return null;
+    }
+
+    // 3. Authenticated User Guard:
+    if (authState.isAuthenticated) {
+      if (isAuthRoute || loc == '/') {
+        return '/dashboard';
+      }
+    }
+
+    return null;
+  }
+}
+
+final routerNotifierProvider = Provider<RouterNotifier>((ref) {
+  return RouterNotifier(ref);
+});
+
+final appRouterProvider = Provider<GoRouter>((ref) {
+  final notifier = ref.watch(routerNotifierProvider);
+
+  return GoRouter(
+    navigatorKey: _rootNavigatorKey,
+    refreshListenable: notifier,
+    initialLocation: '/',
+    redirect: notifier.redirect,
+    routes: _appRoutes,
+  );
+});
+
+// Fallback top-level router for any legacy imports
 final appRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/',
-  routes: [
+  routes: _appRoutes,
+);
+
+final List<RouteBase> _appRoutes = [
     // Splash & Auth routes
     GoRoute(
       path: '/',
@@ -133,5 +200,4 @@ final appRouter = GoRouter(
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => const SettingsScreen(),
     ),
-  ],
-);
+  ];

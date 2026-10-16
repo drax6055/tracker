@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/security/privacy_curtain.dart';
+import 'core/services/ad_service.dart';
 import 'core/services/reminder_notification_service.dart';
 import 'core/theme/brutal_theme.dart';
 import 'router/app_router.dart';
@@ -8,6 +9,7 @@ import 'router/app_router.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ReminderNotificationService().initialize();
+  await AdService.instance.initialize();
   runApp(
     const ProviderScope(
       child: LedgerApp(),

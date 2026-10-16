@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/theme/brutal_colors.dart';
 import '../../../../core/theme/brutal_typography.dart';
 import '../../../../core/utils/currency_formatter.dart';
@@ -11,6 +12,7 @@ import '../../../../core/widgets/brutal_dialog.dart';
 import '../../../../core/widgets/brutal_progress_bar.dart';
 import '../../../../core/widgets/brutal_text_field.dart';
 import '../../../../core/widgets/brutal_toast.dart';
+import '../../../../core/widgets/brutal_toggle.dart';
 import '../../../../core/storage/secure_storage_service.dart';
 import 'package:ledger_app/features/auth/presentation/controllers/auth_controller.dart';
 
@@ -23,6 +25,9 @@ class AccountItem {
   Color accentColor;
   String digits;
   String? subtext;
+  double? creditLimit;
+  double? emiAmount;
+  bool includeInNetWorth;
 
   AccountItem({
     required this.id,
@@ -33,6 +38,9 @@ class AccountItem {
     required this.accentColor,
     required this.digits,
     this.subtext,
+    this.creditLimit,
+    this.emiAmount,
+    this.includeInNetWorth = true,
   });
 }
 
@@ -71,6 +79,9 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
           accentColor: accent,
           digits: (m['digits'] ?? '').toString(),
           subtext: m['subtext']?.toString(),
+          creditLimit: (m['creditLimit'] as num?)?.toDouble(),
+          emiAmount: (m['emiAmount'] as num?)?.toDouble(),
+          includeInNetWorth: m['includeInNetWorth'] != false,
         );
       }).toList();
     });
@@ -85,15 +96,30 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
       'type': a.type,
       'digits': a.digits,
       'subtext': a.subtext,
+      'creditLimit': a.creditLimit,
+      'emiAmount': a.emiAmount,
+      'includeInNetWorth': a.includeInNetWorth,
     }).toList();
     SecureStorageService.saveAccounts(list);
+  }
+
+  Future<void> _navigateToAddAccount() async {
+    await context.push('/add-account');
+    _loadAccounts();
   }
 
   void _showEditAccountDialog(AccountItem account) {
     final titleController = TextEditingController(text: account.title);
     final subtitleController = TextEditingController(text: account.subtitle);
     final balanceController = TextEditingController(text: account.balance.toStringAsFixed(0));
+    final limitController = TextEditingController(
+      text: account.creditLimit != null ? account.creditLimit!.toStringAsFixed(0) : '',
+    );
+    final emiController = TextEditingController(
+      text: account.emiAmount != null ? account.emiAmount!.toStringAsFixed(0) : '',
+    );
     String selectedType = account.type;
+    bool includeInNetWorth = account.includeInNetWorth;
 
     showModalBottomSheet(
       context: context,
@@ -142,9 +168,50 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                     const SizedBox(height: 12),
                     BrutalTextField(
                       controller: balanceController,
-                      label: 'CURRENT BALANCE',
+                      label: selectedType == 'LOAN'
+                          ? 'REMAINING PRINCIPAL'
+                          : selectedType == 'CREDIT_CARD'
+                              ? 'CURRENT OUTSTANDING'
+                              : 'CURRENT BALANCE',
                       hintText: '0.00',
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    ),
+                    const SizedBox(height: 12),
+                    if (selectedType == 'CREDIT_CARD') ...[
+                      BrutalTextField(
+                        controller: limitController,
+                        label: 'CREDIT LIMIT',
+                        hintText: '500000',
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    if (selectedType == 'LOAN') ...[
+                      BrutalTextField(
+                        controller: emiController,
+                        label: 'MONTHLY EMI AMOUNT',
+                        hintText: '14500',
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    // Include in net worth toggle
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: BrutalColors.surfaceElevated,
+                        border: Border.all(color: BrutalColors.borderDim, width: 1.5),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('INCLUDE IN NET WORTH', style: BrutalTypography.label.copyWith(fontSize: 12)),
+                          BrutalToggle(
+                            value: includeInNetWorth,
+                            onChanged: (val) => setModalState(() => includeInNetWorth = val),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 16),
                     Text('ACCOUNT CATEGORY', style: BrutalTypography.label),
@@ -181,6 +248,8 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                         final newTitle = titleController.text.trim();
                         final newSubtitle = subtitleController.text.trim();
                         final newBalance = double.tryParse(balanceController.text.trim()) ?? account.balance;
+                        final newLimit = double.tryParse(limitController.text.trim());
+                        final newEmi = double.tryParse(emiController.text.trim());
 
                         if (newTitle.isEmpty) {
                           BrutalToast.showError(ctx, 'Account name cannot be empty');
@@ -192,6 +261,9 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                           account.subtitle = newSubtitle;
                           account.balance = newBalance;
                           account.type = selectedType;
+                          account.creditLimit = newLimit;
+                          account.emiAmount = newEmi;
+                          account.includeInNetWorth = includeInNetWorth;
                           if (selectedType == 'BANK') account.accentColor = BrutalColors.cyan;
                           if (selectedType == 'CASH') account.accentColor = BrutalColors.lime;
                           if (selectedType == 'CREDIT_CARD') account.accentColor = BrutalColors.hotPink;
@@ -233,137 +305,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
     );
   }
 
-  void _showAddAccountDialog() {
-    final titleController = TextEditingController();
-    final subtitleController = TextEditingController();
-    final balanceController = TextEditingController();
-    String selectedType = 'BANK';
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: BrutalColors.surface,
-      shape: const RoundedRectangleBorder(
-        side: BorderSide(color: BrutalColors.border, width: 3.0),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 24,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('ADD NEW VAULT ACCOUNT', style: BrutalTypography.headingSmall),
-                        IconButton(
-                          icon: const Icon(Icons.close, color: BrutalColors.textPrimary),
-                          onPressed: () => Navigator.pop(ctx),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    BrutalTextField(
-                      controller: titleController,
-                      label: 'ACCOUNT NAME',
-                      hintText: 'e.g., Savings Account',
-                    ),
-                    const SizedBox(height: 12),
-                    BrutalTextField(
-                      controller: subtitleController,
-                      label: 'INSTITUTION / DETAILS',
-                      hintText: 'e.g., SBI • Last 4: 9012',
-                    ),
-                    const SizedBox(height: 12),
-                    BrutalTextField(
-                      controller: balanceController,
-                      label: 'STARTING BALANCE',
-                      hintText: '0.00',
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    ),
-                    const SizedBox(height: 16),
-                    Text('ACCOUNT CATEGORY', style: BrutalTypography.label),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: ['BANK', 'CASH', 'CREDIT_CARD', 'LOAN'].map((t) {
-                        final isSel = selectedType == t;
-                        Color c = BrutalColors.cyan;
-                        if (t == 'CASH') c = BrutalColors.lime;
-                        if (t == 'CREDIT_CARD') c = BrutalColors.hotPink;
-                        if (t == 'LOAN') c = BrutalColors.orange;
-
-                        return BrutalChip(
-                          label: t.replaceAll('_', ' '),
-                          backgroundColor: isSel ? c : BrutalColors.surfaceElevated,
-                          textColor: isSel ? BrutalColors.textDark : BrutalColors.textPrimary,
-                          borderColor: isSel ? BrutalColors.border : BrutalColors.borderDim,
-                          shadowOffset: isSel ? 2 : 0,
-                          onTap: () {
-                            setModalState(() => selectedType = t);
-                          },
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 24),
-                    BrutalButton(
-                      text: '+ CREATE ACCOUNT',
-                      backgroundColor: BrutalColors.primaryYellow,
-                      textColor: BrutalColors.textDark,
-                      height: 48,
-                      onPressed: () {
-                        final title = titleController.text.trim();
-                        final subtitle = subtitleController.text.trim();
-                        final balance = double.tryParse(balanceController.text.trim()) ?? 0.0;
-
-                        if (title.isEmpty) {
-                          BrutalToast.showError(ctx, 'Please enter an account name');
-                          return;
-                        }
-
-                        Color c = BrutalColors.cyan;
-                        if (selectedType == 'CASH') c = BrutalColors.lime;
-                        if (selectedType == 'CREDIT_CARD') c = BrutalColors.hotPink;
-                        if (selectedType == 'LOAN') c = BrutalColors.orange;
-
-                        setState(() {
-                          _accounts.add(
-                            AccountItem(
-                              id: 'acc_${DateTime.now().millisecondsSinceEpoch}',
-                              title: title,
-                              subtitle: subtitle.isNotEmpty ? subtitle : 'Active Account',
-                              balance: balance,
-                              type: selectedType,
-                              accentColor: c,
-                              digits: 'NEW',
-                            ),
-                          );
-                        });
-                        _saveAccounts();
-
-                        Navigator.pop(ctx);
-                        BrutalToast.showSuccess(context, 'NEW VAULT ACCOUNT CREATED');
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -383,7 +325,8 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.add, color: BrutalColors.primaryYellow, size: 28),
-            onPressed: _showAddAccountDialog,
+            tooltip: 'Add New Account',
+            onPressed: _navigateToAddAccount,
           ),
           const SizedBox(width: 8),
         ],
@@ -439,7 +382,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                         height: 44,
                         backgroundColor: BrutalColors.primaryYellow,
                         textColor: BrutalColors.textDark,
-                        onPressed: _showAddAccountDialog,
+                        onPressed: _navigateToAddAccount,
                       ),
                     ],
                   ),
@@ -481,12 +424,30 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      BrutalChip(
-                        label: acc.type,
-                        backgroundColor: acc.accentColor,
-                        textColor: BrutalColors.textDark,
-                        shadowOffset: 0,
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      Row(
+                        children: [
+                          BrutalChip(
+                            label: acc.type,
+                            backgroundColor: acc.accentColor,
+                            textColor: BrutalColors.textDark,
+                            shadowOffset: 0,
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          ),
+                          if (!acc.includeInNetWorth) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: BrutalColors.surfaceElevated,
+                                border: Border.all(color: BrutalColors.orange, width: 1.5),
+                              ),
+                              child: Text(
+                                'NOT IN NET WORTH',
+                                style: BrutalTypography.sticker.copyWith(fontSize: 9, color: BrutalColors.orange),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 6),
                       Text(acc.title, style: BrutalTypography.bodyLarge.copyWith(fontWeight: FontWeight.bold)),
@@ -526,6 +487,10 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
   }
 
   Widget _buildCreditCardItem(AccountItem acc, String currency) {
+    final limit = acc.creditLimit ?? (acc.balance > 0 ? (acc.balance + 451500.0) : 500000.0);
+    final available = (limit - acc.balance).clamp(0.0, double.infinity);
+    final progress = limit > 0 ? (acc.balance / limit).clamp(0.0, 1.0) : 0.0;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       child: BrutalCard(
@@ -540,11 +505,29 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const BrutalChip(
-                  label: 'CREDIT CARD',
-                  backgroundColor: BrutalColors.hotPink,
-                  textColor: BrutalColors.textPrimary,
-                  shadowOffset: 0,
+                Row(
+                  children: [
+                    const BrutalChip(
+                      label: 'CREDIT CARD',
+                      backgroundColor: BrutalColors.hotPink,
+                      textColor: BrutalColors.textPrimary,
+                      shadowOffset: 0,
+                    ),
+                    if (!acc.includeInNetWorth) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: BrutalColors.surfaceElevated,
+                          border: Border.all(color: BrutalColors.orange, width: 1.5),
+                        ),
+                        child: Text(
+                          'NOT IN NET WORTH',
+                          style: BrutalTypography.sticker.copyWith(fontSize: 9, color: BrutalColors.orange),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 Text('•${acc.digits}', style: BrutalTypography.sticker.copyWith(color: BrutalColors.textMuted)),
               ],
@@ -571,7 +554,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                   children: [
                     Text('AVAILABLE', style: BrutalTypography.sticker.copyWith(color: BrutalColors.lime)),
                     Text(
-                      CurrencyFormatter.format(451500.0, symbol: currency, showDecimals: false),
+                      CurrencyFormatter.format(available, symbol: currency, showDecimals: false),
                       style: BrutalTypography.amountSmall.copyWith(color: BrutalColors.lime),
                     ),
                   ],
@@ -579,8 +562,8 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
               ],
             ),
             const SizedBox(height: 10),
-            const BrutalProgressBar(
-              value: 0.097,
+            BrutalProgressBar(
+              value: progress,
               height: 12,
               fillColor: BrutalColors.hotPink,
             ),
@@ -628,11 +611,29 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const BrutalChip(
-                  label: 'LOAN',
-                  backgroundColor: BrutalColors.orange,
-                  textColor: BrutalColors.textDark,
-                  shadowOffset: 0,
+                Row(
+                  children: [
+                    const BrutalChip(
+                      label: 'LOAN',
+                      backgroundColor: BrutalColors.orange,
+                      textColor: BrutalColors.textDark,
+                      shadowOffset: 0,
+                    ),
+                    if (!acc.includeInNetWorth) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: BrutalColors.surfaceElevated,
+                          border: Border.all(color: BrutalColors.orange, width: 1.5),
+                        ),
+                        child: Text(
+                          'NOT IN NET WORTH',
+                          style: BrutalTypography.sticker.copyWith(fontSize: 9, color: BrutalColors.orange),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 Text(acc.digits, style: BrutalTypography.sticker.copyWith(color: BrutalColors.textMuted)),
               ],
@@ -644,11 +645,27 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('REMAINING', style: BrutalTypography.sticker.copyWith(color: BrutalColors.textMuted)),
-                Text(
-                  CurrencyFormatter.format(acc.balance, symbol: currency, showDecimals: false),
-                  style: BrutalTypography.amountSmall.copyWith(color: BrutalColors.orange),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('REMAINING', style: BrutalTypography.sticker.copyWith(color: BrutalColors.textMuted)),
+                    Text(
+                      CurrencyFormatter.format(acc.balance, symbol: currency, showDecimals: false),
+                      style: BrutalTypography.amountSmall.copyWith(color: BrutalColors.orange),
+                    ),
+                  ],
                 ),
+                if (acc.emiAmount != null && acc.emiAmount! > 0)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text('MONTHLY EMI', style: BrutalTypography.sticker.copyWith(color: BrutalColors.cyan)),
+                      Text(
+                        '${CurrencyFormatter.format(acc.emiAmount!, symbol: currency, showDecimals: false)}/mo',
+                        style: BrutalTypography.amountSmall.copyWith(color: BrutalColors.cyan),
+                      ),
+                    ],
+                  ),
               ],
             ),
             const SizedBox(height: 10),
@@ -657,6 +674,10 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
               height: 12,
               fillColor: BrutalColors.orange,
             ),
+            if (acc.subtext != null) ...[
+              const SizedBox(height: 6),
+              Text(acc.subtext!, style: BrutalTypography.sticker.copyWith(fontSize: 10, color: BrutalColors.textMuted)),
+            ],
             const SizedBox(height: 12),
             const Divider(color: BrutalColors.borderDim, height: 1),
             const SizedBox(height: 8),

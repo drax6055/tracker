@@ -70,6 +70,7 @@ class PdfReportService {
       totalOutflow = 48500.0;
     } else {
       for (final a in accounts) {
+        if (a['includeInNetWorth'] == false) continue;
         final bal = (a['balance'] as num?)?.toDouble() ?? 0.0;
         final type = (a['type'] ?? 'BANK').toString().toUpperCase();
         if (type == 'LOAN' || type == 'CREDIT_CARD') {

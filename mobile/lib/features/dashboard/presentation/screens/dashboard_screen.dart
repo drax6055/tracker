@@ -60,6 +60,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       } else {
         double nw = 0.0;
         for (final a in accs) {
+          if (a['includeInNetWorth'] == false) continue;
           final bal = (a['balance'] as num?)?.toDouble() ?? 0.0;
           final type = (a['type'] ?? 'BANK').toString();
           if (type == 'LOAN' || type == 'CREDIT_CARD') {

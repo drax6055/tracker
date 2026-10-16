@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/security/bank_privacy_service.dart';
 import '../../../../core/services/reminder_notification_service.dart';
 import '../../../../core/storage/secure_storage_service.dart';
 import '../../../../core/theme/brutal_colors.dart';
@@ -25,8 +24,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String _selectedCurrency = 'INR';
   bool _reminderEnabled = true;
   TimeOfDay _reminderTime = const TimeOfDay(hour: 21, minute: 0);
-  bool _bankPrivacyEnabled = true;
-  bool _notifPermissionGranted = false;
   bool _isDemoAccount = false;
 
   @override
@@ -34,7 +31,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     super.initState();
     _loadCurrency();
     _loadReminderSettings();
-    _loadSecurityAndPermissions();
     _checkIfDemo();
   }
 
@@ -42,46 +38,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final isDemo = await SecureStorageService.isCurrentUserDemo();
     if (mounted) {
       setState(() => _isDemoAccount = isDemo);
-    }
-  }
-
-  Future<void> _loadSecurityAndPermissions() async {
-    final secure = await BankPrivacyService.isSecureEnabled();
-    final notif = await ReminderNotificationService().checkPermissionsGranted();
-    if (mounted) {
-      setState(() {
-        _bankPrivacyEnabled = secure;
-        _notifPermissionGranted = notif;
-      });
-    }
-  }
-
-  void _toggleBankPrivacy(bool val) async {
-    if (val) {
-      await BankPrivacyService.enableSecureFlag();
-    } else {
-      await BankPrivacyService.disableSecureFlag();
-    }
-    setState(() => _bankPrivacyEnabled = val);
-    if (mounted) {
-      BrutalToast.showSuccess(
-        context,
-        val
-            ? 'BANK PRIVACY ACTIVE: App snapshot hidden in app drawer & screenshots disabled'
-            : 'BANK PRIVACY DISABLED: App preview visible in task switcher',
-      );
-    }
-  }
-
-  void _requestNotificationPermission() async {
-    final granted = await ReminderNotificationService().requestPermissions();
-    if (mounted) {
-      setState(() => _notifPermissionGranted = granted);
-      if (granted) {
-        BrutalToast.showSuccess(context, 'NOTIFICATION & ALARM PERMISSIONS AUTHORIZED');
-      } else {
-        BrutalToast.showWarning(context, 'PERMISSION STATUS PENDING IN OS SETTINGS');
-      }
     }
   }
 
@@ -114,6 +70,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     await SecureStorageService.saveReminderEnabled(val);
     setState(() => _reminderEnabled = val);
     if (val) {
+      await ReminderNotificationService().requestPermissions();
       await ReminderNotificationService().scheduleDailyReminder(
         _reminderTime.hour,
         _reminderTime.minute,
@@ -490,147 +447,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ],
                     ),
                   ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Bank Privacy & Runtime Permissions
-            Text('BANK PRIVACY & OS PERMISSIONS', style: BrutalTypography.label),
-            const SizedBox(height: 10),
-            BrutalCard(
-              backgroundColor: BrutalColors.surface,
-              borderColor: BrutalColors.border,
-              shadowColor: BrutalColors.cyan,
-              shadowOffset: 4.0,
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 1. Bank App Switcher / App Drawer Privacy
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: _bankPrivacyEnabled ? BrutalColors.cyan : BrutalColors.surfaceElevated,
-                          border: Border.all(color: BrutalColors.border, width: 2),
-                        ),
-                        child: Icon(
-                          Icons.security,
-                          color: _bankPrivacyEnabled ? BrutalColors.textDark : BrutalColors.textMuted,
-                          size: 22,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'BANK PRIVACY (FLAG_SECURE)',
-                              style: BrutalTypography.bodyMedium.copyWith(
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              _bankPrivacyEnabled
-                                  ? 'App screen is blanked in app drawer & screenshots blocked'
-                                  : 'Disabled: App preview is visible in app switcher',
-                              style: BrutalTypography.bodySmall.copyWith(
-                                color: BrutalColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Switch.adaptive(
-                        value: _bankPrivacyEnabled,
-                        activeTrackColor: BrutalColors.cyan,
-                        activeThumbColor: BrutalColors.textDark,
-                        onChanged: _toggleBankPrivacy,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  const Divider(color: BrutalColors.borderDim, height: 1),
-                  const SizedBox(height: 14),
-
-                  // 2. Runtime Notification & Background Alarms Permission
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: _notifPermissionGranted ? BrutalColors.lime : BrutalColors.orange,
-                          border: Border.all(color: BrutalColors.border, width: 2),
-                        ),
-                        child: Icon(
-                          _notifPermissionGranted ? Icons.check_circle_outline : Icons.notification_important_outlined,
-                          color: BrutalColors.textDark,
-                          size: 22,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'RUNTIME NOTIFICATION STATUS',
-                              style: BrutalTypography.bodyMedium.copyWith(
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              _notifPermissionGranted
-                                  ? 'Authorized: Exact alarms & tray notifications active'
-                                  : 'Pending: Tap button to grant Android/iOS notification permission',
-                              style: BrutalTypography.bodySmall.copyWith(
-                                color: BrutalColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      BrutalChip(
-                        label: _notifPermissionGranted ? 'VERIFIED' : 'GRANT',
-                        backgroundColor: _notifPermissionGranted ? BrutalColors.lime : BrutalColors.primaryYellow,
-                        textColor: BrutalColors.textDark,
-                        borderColor: BrutalColors.border,
-                        shadowOffset: 2.0,
-                        onTap: _requestNotificationPermission,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: BrutalColors.surfaceElevated,
-                      border: Border.all(color: BrutalColors.borderDim, width: 1.5),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.info_outline, size: 16, color: BrutalColors.primaryYellow),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Battery Tip: On Samsung/Xiaomi, set battery to "Unrestricted" so alarms ring even when the app is closed.',
-                            style: BrutalTypography.bodySmall.copyWith(
-                              fontSize: 10.5,
-                              color: BrutalColors.textSecondary,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ],
               ),
             ),

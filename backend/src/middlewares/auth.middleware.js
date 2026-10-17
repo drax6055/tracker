@@ -22,6 +22,37 @@ const protect = asyncHandler(async (req, res, next) => {
       return next(new AppError('The user belonging to this token no longer exists.', 401));
     }
 
+    // Check if session has been revoked by another device login
+    if (
+      user.sessionVersion &&
+      decoded.sessionVersion !== undefined &&
+      decoded.sessionVersion < user.sessionVersion
+    ) {
+      return next(
+        new AppError(
+          'Your account has been logged in on another device. Please log in again.',
+          401,
+          null,
+          'SESSION_REVOKED'
+        )
+      );
+    }
+
+    if (
+      user.currentDeviceId &&
+      decoded.deviceId &&
+      decoded.deviceId !== user.currentDeviceId
+    ) {
+      return next(
+        new AppError(
+          'Your account has been logged in on another device. Please log in again.',
+          401,
+          null,
+          'SESSION_REVOKED'
+        )
+      );
+    }
+
     req.user = user;
     next();
   } catch (error) {

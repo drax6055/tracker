@@ -4,12 +4,14 @@ const env = require('../config/env');
 const RefreshToken = require('../models/refreshToken.model');
 
 class TokenService {
-  static generateAccessToken(user) {
+  static generateAccessToken(user, deviceId = null) {
     const payload = {
       sub: user._id.toString(),
       email: user.email,
       name: user.name,
       currency: user.currency || 'INR',
+      sessionVersion: user.sessionVersion || 1,
+      deviceId: deviceId || user.currentDeviceId || null,
     };
 
     return jwt.sign(payload, env.jwt.accessSecret, {
@@ -25,8 +27,8 @@ class TokenService {
     return crypto.createHash('sha256').update(token).digest('hex');
   }
 
-  static async generateAuthTokens(user, device = 'mobile') {
-    const accessToken = this.generateAccessToken(user);
+  static async generateAuthTokens(user, device = 'mobile', deviceId = null) {
+    const accessToken = this.generateAccessToken(user, deviceId);
 
     // 7 days expiration for refresh token
     const refreshTokenRaw = crypto.randomBytes(40).toString('hex');
@@ -37,6 +39,7 @@ class TokenService {
       userId: user._id,
       tokenHash,
       device,
+      deviceId,
       expiresAt,
     });
 

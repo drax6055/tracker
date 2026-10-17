@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class SecureStorageService {
@@ -124,6 +125,7 @@ class SecureStorageService {
       'balance': 48500.0,
       'type': 'CREDIT_CARD',
       'digits': '9920',
+      'creditLimit': 500000.0,
       'subtext': 'UTILIZATION: 9.7% • DUE 22ND OF MONTH',
     },
     {
@@ -133,7 +135,11 @@ class SecureStorageService {
       'balance': 356300.0,
       'type': 'LOAN',
       'digits': 'SBI',
-      'subtext': 'REMAINING: 28% • EMI ₹14,500',
+      'creditLimit': 500000.0,
+      'emiAmount': 15760.0,
+      'emiDueDay': 10,
+      'isClosed': false,
+      'subtext': 'REPAID: 28.7% • DUE 10TH OF MONTH',
     },
   ];
 
@@ -241,31 +247,41 @@ class SecureStorageService {
 
   // Categories (Dynamic)
   static const String _categoriesKey = 'ledger_dynamic_categories';
+  static List<String>? _memCategories;
 
   static Future<void> saveCategories(List<String> categories) async {
-    await _storage.write(key: _categoriesKey, value: jsonEncode(categories));
+    _memCategories = List<String>.from(categories);
+    try {
+      await _storage.write(key: _categoriesKey, value: jsonEncode(categories));
+    } catch (_) {}
   }
 
   static Future<List<String>> getCategories() async {
-    final str = await _storage.read(key: _categoriesKey);
-    if (str != null) {
-      try {
-        final list = jsonDecode(str) as List<dynamic>;
-        return list.map((e) => e.toString()).toList();
-      } catch (_) {}
+    if (_memCategories != null) {
+      return List<String>.from(_memCategories!);
     }
+    try {
+      final str = await _storage.read(key: _categoriesKey);
+      if (str != null && str.isNotEmpty) {
+        final list = jsonDecode(str) as List<dynamic>;
+        final res = list.map((e) => e.toString()).toList();
+        _memCategories = List<String>.from(res);
+        return res;
+      }
+    } catch (_) {}
+
     // If empty and demo user, return demo categories; else completely empty!
     if (await isCurrentUserDemo()) {
+      _memCategories = List<String>.from(demoCategories);
       return List<String>.from(demoCategories);
     }
+    _memCategories = [];
     return [];
   }
 
   // Custom Categories (Legacy compatibility)
-  static const String _customCategoriesKey = 'ledger_custom_categories';
-
   static Future<void> saveCustomCategories(List<String> categories) async {
-    await _storage.write(key: _customCategoriesKey, value: jsonEncode(categories));
+    await saveCategories(categories);
   }
 
   static Future<List<String>> getCustomCategories() async {
@@ -274,45 +290,69 @@ class SecureStorageService {
 
   // Accounts Vault (Dynamic)
   static const String _accountsKey = 'ledger_vault_accounts';
+  static List<Map<String, dynamic>>? _memAccounts;
 
   static Future<void> saveAccounts(List<Map<String, dynamic>> accounts) async {
-    await _storage.write(key: _accountsKey, value: jsonEncode(accounts));
+    _memAccounts = List<Map<String, dynamic>>.from(accounts);
+    try {
+      await _storage.write(key: _accountsKey, value: jsonEncode(accounts));
+    } catch (_) {}
   }
 
   static Future<List<Map<String, dynamic>>> getAccounts() async {
-    final str = await _storage.read(key: _accountsKey);
-    if (str != null) {
-      try {
-        final list = jsonDecode(str) as List<dynamic>;
-        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      } catch (_) {}
+    if (_memAccounts != null) {
+      return List<Map<String, dynamic>>.from(_memAccounts!);
     }
+    try {
+      final str = await _storage.read(key: _accountsKey);
+      if (str != null && str.isNotEmpty) {
+        final list = jsonDecode(str) as List<dynamic>;
+        final res = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        _memAccounts = List<Map<String, dynamic>>.from(res);
+        return res;
+      }
+    } catch (_) {}
+
     // If empty and demo user, return demo accounts; else completely empty!
     if (await isCurrentUserDemo()) {
+      _memAccounts = List<Map<String, dynamic>>.from(demoAccounts);
       return List<Map<String, dynamic>>.from(demoAccounts);
     }
+    _memAccounts = [];
     return [];
   }
 
   // Transactions (Dynamic)
   static const String _transactionsKey = 'ledger_transactions';
+  static List<Map<String, dynamic>>? _memTransactions;
 
   static Future<void> saveTransactions(List<Map<String, dynamic>> transactions) async {
-    await _storage.write(key: _transactionsKey, value: jsonEncode(transactions));
+    _memTransactions = List<Map<String, dynamic>>.from(transactions);
+    try {
+      await _storage.write(key: _transactionsKey, value: jsonEncode(transactions));
+    } catch (_) {}
   }
 
   static Future<List<Map<String, dynamic>>> getTransactions() async {
-    final str = await _storage.read(key: _transactionsKey);
-    if (str != null) {
-      try {
-        final list = jsonDecode(str) as List<dynamic>;
-        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      } catch (_) {}
+    if (_memTransactions != null) {
+      return List<Map<String, dynamic>>.from(_memTransactions!);
     }
+    try {
+      final str = await _storage.read(key: _transactionsKey);
+      if (str != null && str.isNotEmpty) {
+        final list = jsonDecode(str) as List<dynamic>;
+        final res = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        _memTransactions = List<Map<String, dynamic>>.from(res);
+        return res;
+      }
+    } catch (_) {}
+
     // If empty and demo user, return demo transactions; else completely empty!
     if (await isCurrentUserDemo()) {
+      _memTransactions = List<Map<String, dynamic>>.from(demoTransactions);
       return List<Map<String, dynamic>>.from(demoTransactions);
     }
+    _memTransactions = [];
     return [];
   }
 
@@ -355,28 +395,91 @@ class SecureStorageService {
 
   // Debts & Loans (Dynamic)
   static const String _debtsKey = 'ledger_debts';
+  static List<Map<String, dynamic>>? _memDebts;
 
   static Future<void> saveDebts(List<Map<String, dynamic>> debts) async {
-    await _storage.write(key: _debtsKey, value: jsonEncode(debts));
+    _memDebts = List<Map<String, dynamic>>.from(debts);
+    try {
+      await _storage.write(key: _debtsKey, value: jsonEncode(debts));
+    } catch (_) {}
   }
 
   static Future<List<Map<String, dynamic>>> getDebts() async {
-    final str = await _storage.read(key: _debtsKey);
-    if (str != null) {
-      try {
-        final list = jsonDecode(str) as List<dynamic>;
-        return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      } catch (_) {}
+    if (_memDebts != null) {
+      return List<Map<String, dynamic>>.from(_memDebts!);
     }
+    try {
+      final str = await _storage.read(key: _debtsKey);
+      if (str != null && str.isNotEmpty) {
+        final list = jsonDecode(str) as List<dynamic>;
+        final res = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        _memDebts = List<Map<String, dynamic>>.from(res);
+        return res;
+      }
+    } catch (_) {}
+
     // If empty and demo user, return demo debts; else completely empty!
     if (await isCurrentUserDemo()) {
+      _memDebts = List<Map<String, dynamic>>.from(demoDebts);
       return List<Map<String, dynamic>>.from(demoDebts);
     }
+    _memDebts = [];
     return [];
+  }
+
+  static const String _deviceIdKey = 'ledger_device_id';
+  static String? _memDeviceId;
+
+  static Future<String> getDeviceId() async {
+    if (_memDeviceId != null && _memDeviceId!.isNotEmpty) {
+      return _memDeviceId!;
+    }
+    try {
+      final id = await _storage.read(key: _deviceIdKey);
+      if (id != null && id.isNotEmpty) {
+        _memDeviceId = id;
+        return id;
+      }
+    } catch (_) {}
+
+    final generated = 'dev_${DateTime.now().millisecondsSinceEpoch}_${(DateTime.now().microsecond % 9999)}';
+    _memDeviceId = generated;
+    try {
+      await _storage.write(key: _deviceIdKey, value: generated);
+    } catch (_) {}
+    return generated;
+  }
+
+  static String getDeviceName() {
+    if (kIsWeb) {
+      return 'Web Browser (${defaultTargetPlatform.name.toUpperCase()})';
+    }
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return 'Android Mobile Device';
+      case TargetPlatform.iOS:
+        return 'Apple iOS Device';
+      case TargetPlatform.windows:
+        return 'Windows Desktop PC';
+      case TargetPlatform.macOS:
+        return 'macOS Desktop';
+      case TargetPlatform.linux:
+        return 'Linux PC';
+      default:
+        return 'Personal Device';
+    }
   }
 
   // Clear All (Logout)
   static Future<void> clearAll() async {
+    _memTransactions = null;
+    _memAccounts = null;
+    _memCategories = null;
+    _memDebts = null;
+    final devId = await _storage.read(key: _deviceIdKey);
     await _storage.deleteAll();
+    if (devId != null) {
+      await _storage.write(key: _deviceIdKey, value: devId);
+    }
   }
 }

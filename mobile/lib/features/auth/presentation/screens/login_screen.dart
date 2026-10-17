@@ -5,6 +5,7 @@ import '../../../../core/theme/brutal_colors.dart';
 import '../../../../core/theme/brutal_typography.dart';
 import '../../../../core/widgets/brutal_button.dart';
 import '../../../../core/widgets/brutal_card.dart';
+import '../../../../core/widgets/brutal_dialog.dart';
 import '../../../../core/widgets/brutal_text_field.dart';
 import '../../../../core/widgets/brutal_toast.dart';
 import '../controllers/auth_controller.dart';
@@ -36,19 +37,87 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     BrutalToast.showSuccess(context, 'DEMO CREDENTIALS LOADED');
   }
 
-  Future<void> _handleLogin() async {
+  void _showActiveSessionDialog(String activeDevice) {
+    BrutalDialog.show(
+      context: context,
+      title: 'SESSION ACTIVE',
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: BrutalColors.surfaceElevated,
+              border: Border.all(color: BrutalColors.orange, width: 2.0),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.devices_outlined, color: BrutalColors.orange, size: 24),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'LOGGED IN ON ANOTHER DEVICE:',
+                        style: BrutalTypography.sticker.copyWith(
+                          color: BrutalColors.orange,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        activeDevice,
+                        style: BrutalTypography.bodyMedium.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: BrutalColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Ledger security enforces 1 active device at a time. To log in on this device, the session on "$activeDevice" must be terminated.',
+            style: BrutalTypography.bodyMedium.copyWith(color: BrutalColors.textSecondary),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Terminate the other session and log in here?',
+            style: BrutalTypography.bodyMedium.copyWith(
+              fontWeight: FontWeight.bold,
+              color: BrutalColors.primaryYellow,
+            ),
+          ),
+        ],
+      ),
+      confirmText: 'LOGOUT OTHER & LOGIN',
+      confirmColor: BrutalColors.primaryYellow,
+      cancelText: 'CANCEL',
+      onConfirm: () => _handleLogin(force: true),
+    );
+  }
+
+  Future<void> _handleLogin({bool force = false}) async {
     if (!_formKey.currentState!.validate()) return;
 
-    final success = await ref.read(authControllerProvider.notifier).login(
+    final result = await ref.read(authControllerProvider.notifier).login(
           _emailController.text.trim().toLowerCase(),
           _passwordController.text.trim(),
+          force: force,
         );
 
-    if (success && mounted) {
+    if (result.success && mounted) {
       BrutalToast.showSuccess(context, 'WELCOME BACK!');
       context.go('/dashboard');
+    } else if (result.hasActiveSession && mounted) {
+      _showActiveSessionDialog(result.activeDevice ?? 'Another Device');
     } else if (mounted) {
-      final error = ref.read(authControllerProvider).errorMessage ?? 'Login failed';
+      final error = result.errorMessage ?? 'Login failed';
       BrutalToast.showError(context, error);
     }
   }
@@ -126,7 +195,38 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  // Active Session Warning / Revocation Banner
+                  if (authState.errorMessage != null && authState.errorMessage!.isNotEmpty) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: BrutalColors.surfaceElevated,
+                        border: Border.all(color: BrutalColors.red, width: 2.0),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: BrutalColors.red,
+                            offset: Offset(3.0, 3.0),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.warning_amber_rounded, color: BrutalColors.red, size: 24),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              authState.errorMessage!,
+                              style: BrutalTypography.bodyMedium.copyWith(
+                                color: BrutalColors.red,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
 
                   // Login Card
                   BrutalCard(

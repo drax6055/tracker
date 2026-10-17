@@ -13,6 +13,8 @@ const registerSchema = z
     email: z.string().email('Invalid email address').toLowerCase().trim(),
     password: passwordSchema,
     confirmPassword: z.string(),
+    device: z.string().optional(),
+    deviceId: z.string().optional(),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: 'Passwords do not match',
@@ -22,10 +24,15 @@ const registerSchema = z
 const loginSchema = z.object({
   email: z.string().email('Invalid email address').toLowerCase().trim(),
   password: z.string().min(1, 'Password is required'),
+  device: z.string().optional(),
+  deviceId: z.string().optional(),
+  force: z.boolean().optional(),
 });
 
 const refreshTokenSchema = z.object({
   refreshToken: z.string().min(1, 'Refresh token is required'),
+  device: z.string().optional(),
+  deviceId: z.string().optional(),
 });
 
 const forgotPasswordSchema = z.object({

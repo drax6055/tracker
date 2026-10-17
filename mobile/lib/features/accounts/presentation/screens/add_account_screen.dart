@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/services/reminder_notification_service.dart';
 import '../../../../core/storage/secure_storage_service.dart';
 import '../../../../core/theme/brutal_colors.dart';
 import '../../../../core/theme/brutal_typography.dart';
@@ -8,7 +9,6 @@ import '../../../../core/utils/currency_formatter.dart';
 import '../../../../core/widgets/brutal_app_bar.dart';
 import '../../../../core/widgets/brutal_button.dart';
 import '../../../../core/widgets/brutal_card.dart';
-import '../../../../core/widgets/brutal_chip.dart';
 import '../../../../core/widgets/brutal_text_field.dart';
 import '../../../../core/widgets/brutal_toast.dart';
 import '../../../../core/widgets/brutal_toggle.dart';
@@ -29,6 +29,7 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
   final _digitsController = TextEditingController();
   final _limitController = TextEditingController();
   final _emiAmountController = TextEditingController();
+  final _emiDueDayController = TextEditingController();
   bool _includeInNetWorth = true;
   bool _isSaving = false;
 
@@ -40,6 +41,7 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
     _digitsController.dispose();
     _limitController.dispose();
     _emiAmountController.dispose();
+    _emiDueDayController.dispose();
     super.dispose();
   }
 
@@ -55,6 +57,7 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
     final digits = _digitsController.text.trim();
     final limit = double.tryParse(_limitController.text.trim()) ?? 0.0;
     final emi = double.tryParse(_emiAmountController.text.trim()) ?? 0.0;
+    final dueDay = int.tryParse(_emiDueDayController.text.trim());
 
     setState(() => _isSaving = true);
 
@@ -89,11 +92,14 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
 
         case 'LOAN':
           final lender = bankName.isNotEmpty ? bankName : 'Loan Account';
+          final duePart = (dueDay != null && dueDay > 0 && dueDay <= 31) ? ' • Due ${dueDay}th' : '';
           if (emi > 0) {
-            subtitle = '$lender • EMI: ${CurrencyFormatter.format(emi, symbol: currency, showDecimals: false)}/mo';
-            subtext = 'MONTHLY EMI: ${CurrencyFormatter.format(emi, symbol: currency, showDecimals: false)}';
+            subtitle = '$lender • EMI: ${CurrencyFormatter.format(emi, symbol: currency, showDecimals: false)}/mo$duePart';
+            final repaid = (limit > balance) ? (limit - balance) : 0.0;
+            final pct = limit > 0 ? ((repaid / limit) * 100).toStringAsFixed(1) : '0';
+            subtext = 'REPAID: $pct% • DUE ${dueDay ?? 10}TH OF MONTH';
           } else {
-            subtitle = '$lender • Liability';
+            subtitle = '$lender • Liability$duePart';
           }
           break;
 
@@ -102,9 +108,10 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
       }
 
       final existing = await SecureStorageService.getAccounts();
+      final newAccId = 'acc_${DateTime.now().millisecondsSinceEpoch}';
 
       existing.add({
-        'id': 'acc_${DateTime.now().millisecondsSinceEpoch}',
+        'id': newAccId,
         'title': name,
         'subtitle': subtitle,
         'balance': balance,
@@ -116,11 +123,34 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
                 : (_selectedType == 'LOAN' ? 'LOAN' : 'ACC')),
         'creditLimit': limit > 0 ? limit : null,
         'emiAmount': emi > 0 ? emi : null,
+        'emiDueDay': (dueDay != null && dueDay > 0 && dueDay <= 31) ? dueDay : null,
+        'isClosed': false,
         'includeInNetWorth': _includeInNetWorth,
         'subtext': subtext,
       });
 
       await SecureStorageService.saveAccounts(existing);
+
+      // Schedule monthly recurring EMI / Bill reminder notification
+      if (_selectedType == 'LOAN' && dueDay != null && dueDay > 0 && dueDay <= 31 && emi > 0) {
+        final notifId = (newAccId.hashCode.abs() % 100000) + 1000;
+        await ReminderNotificationService().scheduleEmiReminder(
+          notificationId: notifId,
+          loanTitle: name,
+          emiAmount: emi,
+          dueDay: dueDay,
+          currency: currency,
+        );
+      } else if (_selectedType == 'CREDIT_CARD' && dueDay != null && dueDay > 0 && dueDay <= 31) {
+        final notifId = (newAccId.hashCode.abs() % 100000) + 2000;
+        await ReminderNotificationService().scheduleCreditCardReminder(
+          notificationId: notifId,
+          cardTitle: name,
+          outstandingAmount: balance > 0 ? balance : (emi > 0 ? emi : 0.0),
+          dueDay: dueDay,
+          currency: currency,
+        );
+      }
 
       if (mounted) {
         BrutalToast.showSuccess(context, 'ACCOUNT ADDED TO VAULT');
@@ -154,22 +184,23 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Type Selector Chips
+              // Type Selector Chips (2x2 Grid so all 4 options including LOAN are 100% visible)
               Text('SELECT ACCOUNT TYPE', style: BrutalTypography.label),
               const SizedBox(height: 10),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _buildTypeChip('BANK', 'BANK ACCOUNT', BrutalColors.cyan),
-                    const SizedBox(width: 8),
-                    _buildTypeChip('CASH', 'CASH WALLET', BrutalColors.lime),
-                    const SizedBox(width: 8),
-                    _buildTypeChip('CREDIT_CARD', 'CREDIT CARD', BrutalColors.hotPink),
-                    const SizedBox(width: 8),
-                    _buildTypeChip('LOAN', 'LOAN / DEBT', BrutalColors.orange),
-                  ],
-                ),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final cardWidth = (constraints.maxWidth - 10) / 2;
+                  return Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      SizedBox(width: cardWidth, child: _buildTypeCard('BANK', 'BANK ACCOUNT', Icons.account_balance, BrutalColors.cyan)),
+                      SizedBox(width: cardWidth, child: _buildTypeCard('CASH', 'CASH WALLET', Icons.account_balance_wallet, BrutalColors.lime)),
+                      SizedBox(width: cardWidth, child: _buildTypeCard('CREDIT_CARD', 'CREDIT CARD', Icons.credit_card, BrutalColors.hotPink)),
+                      SizedBox(width: cardWidth, child: _buildTypeCard('LOAN', 'LOAN / DEBT', Icons.handshake, BrutalColors.orange)),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 20),
 
@@ -261,10 +292,56 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
+                      BrutalTextField(
+                        controller: _emiDueDayController,
+                        label: 'Bill / Payment Due Day of Month (1 - 31)',
+                        hintText: 'e.g. 5, 15, 22',
+                        keyboardType: TextInputType.number,
+                        prefixIcon: const Icon(
+                          Icons.calendar_month_outlined,
+                          color: BrutalColors.hotPink,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      BrutalTextField(
+                        controller: _emiAmountController,
+                        label: 'Monthly Minimum / EMI Amount (Optional)',
+                        hintText: 'e.g. 5000',
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        prefixIcon: Center(
+                          widthFactor: 1,
+                          child: Text(
+                            currency,
+                            style: BrutalTypography.bodyLarge.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: BrutalColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                     ],
 
-                    // Monthly EMI (for loans)
+                    // Monthly EMI & Total Principal (for loans)
                     if (_selectedType == 'LOAN') ...[
+                      BrutalTextField(
+                        controller: _limitController,
+                        label: 'Total Loan Principal (Borrowed Amount)',
+                        hintText: '500000',
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        prefixIcon: Center(
+                          widthFactor: 1,
+                          child: Text(
+                            currency,
+                            style: BrutalTypography.bodyLarge.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: BrutalColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       BrutalTextField(
                         controller: _emiAmountController,
                         label: 'Monthly EMI Amount',
@@ -279,6 +356,18 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
                               color: BrutalColors.textPrimary,
                             ),
                           ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      BrutalTextField(
+                        controller: _emiDueDayController,
+                        label: 'EMI Due Day of Month (1 - 31)',
+                        hintText: 'e.g. 5, 10, 25',
+                        keyboardType: TextInputType.number,
+                        prefixIcon: const Icon(
+                          Icons.calendar_month_outlined,
+                          color: BrutalColors.orange,
+                          size: 20,
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -358,15 +447,35 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
     }
   }
 
-  Widget _buildTypeChip(String type, String label, Color accent) {
+  Widget _buildTypeCard(String type, String label, IconData icon, Color accent) {
     final isSelected = _selectedType == type;
-    return BrutalChip(
-      label: label,
-      backgroundColor: isSelected ? accent : BrutalColors.surfaceElevated,
-      textColor: isSelected ? BrutalColors.textDark : BrutalColors.textPrimary,
-      borderColor: isSelected ? BrutalColors.border : BrutalColors.borderDim,
-      shadowOffset: isSelected ? 3.0 : 0.0,
+    return GestureDetector(
       onTap: () => setState(() => _selectedType = type),
+      child: BrutalCard(
+        backgroundColor: isSelected ? accent : BrutalColors.surfaceElevated,
+        borderColor: isSelected ? BrutalColors.border : BrutalColors.borderDim,
+        shadowColor: isSelected ? BrutalColors.border : Colors.transparent,
+        shadowOffset: isSelected ? 3.0 : 0.0,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 16, color: isSelected ? BrutalColors.textDark : BrutalColors.textPrimary),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                label,
+                style: BrutalTypography.sticker.copyWith(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: isSelected ? BrutalColors.textDark : BrutalColors.textPrimary,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

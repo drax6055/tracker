@@ -1,25 +1,32 @@
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const User = require('../models/user.model');
+const RefreshToken = require('../models/refreshToken.model');
 const PasswordResetOtp = require('../models/passwordResetOtp.model');
 const TokenService = require('./token.service');
 const EmailService = require('./email.service');
 const AppError = require('../utils/appError');
 
 class AuthService {
-  static async register({ name, email, password }) {
+  static async register({ name, email, password, device = 'mobile', deviceId = null }) {
     const existing = await User.findOne({ email });
     if (existing) {
       throw new AppError('An account with this email already exists', 409);
     }
 
+    const effectiveDeviceId =
+      deviceId || `dev_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
     const user = await User.create({
       name,
       email,
       password,
+      currentDeviceId: effectiveDeviceId,
+      currentDeviceName: device,
+      sessionVersion: 1,
     });
 
-    const tokens = await TokenService.generateAuthTokens(user);
+    const tokens = await TokenService.generateAuthTokens(user, device, effectiveDeviceId);
 
     return {
       user: {
@@ -34,7 +41,7 @@ class AuthService {
     };
   }
 
-  static async login({ email, password, device = 'mobile' }) {
+  static async login({ email, password, device = 'mobile', deviceId = null, force = false }) {
     const user = await User.findOne({ email }).select('+password');
     if (!user) {
       throw new AppError('Invalid email or password', 401);
@@ -45,7 +52,57 @@ class AuthService {
       throw new AppError('Invalid email or password', 401);
     }
 
-    const tokens = await TokenService.generateAuthTokens(user, device);
+    const effectiveDeviceId =
+      deviceId || `dev_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+    // Check if user already has an active session on another device
+    if (!force) {
+      // 1. Check user record currentDeviceId
+      const hasActiveDeviceOnUser =
+        user.currentDeviceId &&
+        user.currentDeviceId !== effectiveDeviceId;
+
+      // 2. Check active non-revoked refresh token in DB
+      const activeSession = await RefreshToken.findOne({
+        userId: user._id,
+        revoked: false,
+        expiresAt: { $gt: new Date() },
+      }).sort({ updatedAt: -1 });
+
+      const hasActiveSessionInTokens =
+        activeSession &&
+        activeSession.deviceId &&
+        activeSession.deviceId !== effectiveDeviceId;
+
+      if (hasActiveDeviceOnUser || hasActiveSessionInTokens) {
+        const activeDeviceName =
+          user.currentDeviceName ||
+          (activeSession && activeSession.device) ||
+          'another device';
+
+        throw new AppError(
+          `Account is already logged in on ${activeDeviceName}.`,
+          409,
+          null,
+          'ACTIVE_SESSION_EXISTS',
+          {
+            activeDevice: activeDeviceName,
+            lastActive: (activeSession && (activeSession.updatedAt || activeSession.createdAt)) || user.updatedAt,
+          }
+        );
+      }
+    }
+
+    // Terminate all previous sessions and bump sessionVersion to immediately invalidate older tokens
+    user.sessionVersion = (user.sessionVersion || 0) + 1;
+    user.currentDeviceId = effectiveDeviceId;
+    user.currentDeviceName = device || 'Personal Device';
+    await user.save();
+
+    // Revoke all prior refresh tokens for this user
+    await TokenService.revokeAllUserRefreshTokens(user._id);
+
+    const tokens = await TokenService.generateAuthTokens(user, user.currentDeviceName, effectiveDeviceId);
 
     return {
       user: {
@@ -60,27 +117,55 @@ class AuthService {
     };
   }
 
-  static async refreshTokens(refreshTokenRaw, device = 'mobile') {
+  static async refreshTokens(refreshTokenRaw, device = 'mobile', deviceId = null) {
     const tokenDoc = await TokenService.verifyRefreshToken(refreshTokenRaw);
     if (!tokenDoc) {
-      throw new AppError('Invalid or expired refresh token. Please login again.', 401);
+      throw new AppError('Invalid or expired refresh token. Please login again.', 401, null, 'SESSION_REVOKED');
     }
-
-    // Revoke old refresh token for token rotation
-    await TokenService.revokeRefreshToken(refreshTokenRaw);
 
     const user = await User.findById(tokenDoc.userId);
     if (!user) {
       throw new AppError('User not found', 404);
     }
 
-    const newTokens = await TokenService.generateAuthTokens(user, device);
+    const effectiveDeviceId = deviceId || tokenDoc.deviceId;
+    if (user.currentDeviceId && effectiveDeviceId && user.currentDeviceId !== effectiveDeviceId) {
+      await TokenService.revokeRefreshToken(refreshTokenRaw);
+      throw new AppError(
+        'Your session was terminated because your account was logged in on another device.',
+        401,
+        null,
+        'SESSION_REVOKED'
+      );
+    }
+
+    // Revoke old refresh token for token rotation
+    await TokenService.revokeRefreshToken(refreshTokenRaw);
+
+    const newTokens = await TokenService.generateAuthTokens(
+      user,
+      device || tokenDoc.device || user.currentDeviceName,
+      effectiveDeviceId || user.currentDeviceId
+    );
     return newTokens;
   }
 
-  static async logout(refreshTokenRaw) {
+  static async logout(refreshTokenRaw, userId = null) {
     if (refreshTokenRaw) {
-      await TokenService.revokeRefreshToken(refreshTokenRaw);
+      const tokenDoc = await RefreshToken.findOne({
+        tokenHash: TokenService.hashToken(refreshTokenRaw),
+      });
+      if (tokenDoc) {
+        if (!userId) userId = tokenDoc.userId;
+        await TokenService.revokeRefreshToken(refreshTokenRaw);
+      }
+    }
+    if (userId) {
+      await User.findByIdAndUpdate(userId, {
+        $set: { currentDeviceId: null, currentDeviceName: null },
+        $inc: { sessionVersion: 1 },
+      });
+      await TokenService.revokeAllUserRefreshTokens(userId);
     }
   }
 

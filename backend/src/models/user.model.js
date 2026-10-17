@@ -36,6 +36,19 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    currentDeviceId: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    currentDeviceName: {
+      type: String,
+      default: null,
+    },
+    sessionVersion: {
+      type: Number,
+      default: 1,
+    },
   },
   {
     timestamps: true,

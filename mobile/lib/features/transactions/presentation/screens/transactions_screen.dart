@@ -8,8 +8,8 @@ import '../../../../core/utils/currency_formatter.dart';
 import '../../../../core/widgets/brutal_app_bar.dart';
 import '../../../../core/widgets/brutal_card.dart';
 import '../../../../core/widgets/brutal_chip.dart';
-import '../../../../core/storage/secure_storage_service.dart';
 import 'package:ledger_app/features/auth/presentation/controllers/auth_controller.dart';
+import '../controllers/transactions_controller.dart';
 
 class TransactionsScreen extends ConsumerStatefulWidget {
   const TransactionsScreen({super.key});
@@ -23,29 +23,25 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   final _searchController = TextEditingController();
   DateTimeRange? _selectedDateRange;
 
-  List<Map<String, dynamic>> _transactions = [];
-
   @override
   void initState() {
     super.initState();
-    _loadTransactions();
-  }
-
-  Future<void> _loadTransactions() async {
-    final list = await SecureStorageService.getTransactions();
-    if (!mounted) return;
-    setState(() {
-      _transactions = list;
+    Future.microtask(() {
+      ref.read(transactionsProvider.notifier).loadTransactions();
     });
   }
 
   Future<void> _pickDateRange() async {
+    final now = DateTime.now();
+    final defaultStart = DateTime(now.year, now.month, 1);
+    final defaultEnd = DateTime(now.year, now.month, now.day);
+
     final picked = await showDateRangePicker(
       context: context,
       initialDateRange: _selectedDateRange ??
           DateTimeRange(
-            start: DateTime(2026, 10, 1),
-            end: DateTime(2026, 10, 15),
+            start: defaultStart,
+            end: defaultEnd,
           ),
       firstDate: DateTime(2020),
       lastDate: DateTime(2030),
@@ -82,9 +78,11 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
     final currency = authState.user?.currencySymbol ?? '₹';
+    final transactionsList = ref.watch(transactionsProvider);
 
-    final filtered = _transactions.where((item) {
-      if (_selectedFilter != 'ALL' && item['type'] != _selectedFilter) return false;
+    final filtered = transactionsList.where((item) {
+      final type = (item['type'] ?? 'EXPENSE').toString().toUpperCase();
+      if (_selectedFilter != 'ALL' && type != _selectedFilter) return false;
       if (_searchController.text.isNotEmpty) {
         final query = _searchController.text.toLowerCase();
         final title = (item['title'] ?? '').toString().toLowerCase();
@@ -126,7 +124,9 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
             icon: const Icon(Icons.add, color: BrutalColors.primaryYellow, size: 28),
             onPressed: () async {
               await context.push('/add-transaction');
-              _loadTransactions();
+              if (mounted) {
+                ref.read(transactionsProvider.notifier).loadTransactions();
+              }
             },
           ),
           const SizedBox(width: 8),
@@ -217,110 +217,176 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
               ),
             ),
 
-            // Transactions list
+            // Transactions list with Pull-To-Refresh
             Expanded(
-              child: filtered.isEmpty
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.receipt_long, size: 48, color: BrutalColors.textSecondary),
-                            const SizedBox(height: 12),
-                            Text(
-                              _transactions.isEmpty ? 'NO TRANSACTIONS RECORDED YET' : 'NO TRANSACTIONS MATCH FILTER',
-                              style: BrutalTypography.headingSmall,
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              _transactions.isEmpty
-                                  ? 'Tap the + button above to log your first ledger entry.'
-                                  : 'Try adjusting your search or date filters.',
-                              style: BrutalTypography.bodyMedium.copyWith(color: BrutalColors.textSecondary),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: filtered.length,
-                      itemBuilder: (context, index) {
-                        final item = filtered[index];
-                        final isIncome = item['type'] == 'INCOME';
-                        final isTransfer = item['type'] == 'TRANSFER';
-                        final prefix = isIncome ? '+' : isTransfer ? '⇄ ' : '-';
-                        final amountColor = isIncome
-                            ? BrutalColors.green
-                            : isTransfer
-                                ? BrutalColors.cyan
-                                : BrutalColors.red;
-
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    child: BrutalCard(
-                      backgroundColor: BrutalColors.surface,
-                      borderColor: BrutalColors.border,
-                      shadowOffset: 4.0,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                      child: Row(
+              child: RefreshIndicator(
+                color: BrutalColors.primaryYellow,
+                backgroundColor: BrutalColors.surface,
+                onRefresh: () async {
+                  await ref.read(transactionsProvider.notifier).loadTransactions();
+                },
+                child: filtered.isEmpty
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: amountColor,
-                              border: Border.all(color: BrutalColors.border, width: 2.0),
-                            ),
-                            child: Icon(
-                              isIncome
-                                  ? Icons.arrow_downward
-                                  : isTransfer
-                                      ? Icons.swap_horiz
-                                      : Icons.arrow_upward,
-                              color: BrutalColors.textDark,
-                              size: 20,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  item['title'],
-                                  style: BrutalTypography.bodyLarge.copyWith(fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  '${item['category']} • ${item['account']}',
-                                  style: BrutalTypography.bodySmall.copyWith(color: BrutalColors.textSecondary),
-                                ),
-                                Text(
-                                  item['date'],
-                                  style: BrutalTypography.sticker.copyWith(fontSize: 10, color: BrutalColors.textMuted),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Text(
-                            '$prefix${CurrencyFormatter.format((item['amount'] as num?)?.toDouble() ?? 0.0, symbol: currency, showDecimals: false)}',
-                            style: BrutalTypography.amountSmall.copyWith(
-                              color: amountColor,
-                              fontWeight: FontWeight.bold,
+                          SizedBox(height: MediaQuery.of(context).size.height * 0.15),
+                          Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.receipt_long, size: 48, color: BrutalColors.textSecondary),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    transactionsList.isEmpty
+                                        ? 'NO TRANSACTIONS RECORDED YET'
+                                        : 'NO TRANSACTIONS MATCH FILTER',
+                                    style: BrutalTypography.headingSmall,
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    transactionsList.isEmpty
+                                        ? 'Tap the + button above to log your first ledger entry.'
+                                        : 'Try adjusting your search or date filters.',
+                                    style: BrutalTypography.bodyMedium.copyWith(color: BrutalColors.textSecondary),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],
+                      )
+                    : ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.all(16),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, index) {
+                          final item = filtered[index];
+                          final type = (item['type'] ?? 'EXPENSE').toString().toUpperCase();
+                          final isIncome = type == 'INCOME';
+                          final isTransfer = type == 'TRANSFER';
+                          final prefix = isIncome ? '+' : isTransfer ? '⇄ ' : '-';
+                          final amountColor = isIncome
+                              ? BrutalColors.green
+                              : isTransfer
+                                  ? BrutalColors.cyan
+                                  : BrutalColors.red;
+
+                          final title = (item['title'] ?? 'Entry').toString();
+                          final category = (item['category'] ?? 'General').toString();
+                          final account = (item['account'] ?? 'Vault').toString();
+                          final date = (item['date'] ?? '').toString();
+                          final amount = (item['amount'] as num?)?.toDouble() ?? 0.0;
+                          final txId = (item['id'] ?? '').toString();
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            child: GestureDetector(
+                              onLongPress: txId.isNotEmpty
+                                  ? () => _showDeleteDialog(txId, title)
+                                  : null,
+                              child: BrutalCard(
+                                backgroundColor: BrutalColors.surface,
+                                borderColor: BrutalColors.border,
+                                shadowOffset: 4.0,
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: amountColor,
+                                        border: Border.all(color: BrutalColors.border, width: 2.0),
+                                      ),
+                                      child: Icon(
+                                        isIncome
+                                            ? Icons.arrow_downward
+                                            : isTransfer
+                                                ? Icons.swap_horiz
+                                                : Icons.arrow_upward,
+                                        color: BrutalColors.textDark,
+                                        size: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            title,
+                                            style: BrutalTypography.bodyLarge.copyWith(fontWeight: FontWeight.bold),
+                                          ),
+                                          const SizedBox(height: 3),
+                                          Text(
+                                            '$category • $account',
+                                            style: BrutalTypography.bodySmall.copyWith(color: BrutalColors.textSecondary),
+                                          ),
+                                          if (date.isNotEmpty) ...[
+                                            const SizedBox(height: 3),
+                                            Text(
+                                              date,
+                                              style: BrutalTypography.sticker.copyWith(fontSize: 10, color: BrutalColors.textMuted),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                    Text(
+                                      '$prefix${CurrencyFormatter.format(amount, symbol: currency, showDecimals: false)}',
+                                      style: BrutalTypography.amountSmall.copyWith(
+                                        color: amountColor,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                    ),
-                  );
-                },
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showDeleteDialog(String txId, String title) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: BrutalColors.surface,
+        shape: const RoundedRectangleBorder(
+          side: BorderSide(color: BrutalColors.border, width: 3.0),
+        ),
+        title: Text('DELETE ENTRY?', style: BrutalTypography.headingSmall),
+        content: Text(
+          'Remove "$title" from ledger records permanently?',
+          style: BrutalTypography.bodyMedium.copyWith(color: BrutalColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('CANCEL', style: BrutalTypography.bodyMedium.copyWith(color: BrutalColors.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: BrutalColors.red,
+              foregroundColor: BrutalColors.textPrimary,
+            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await ref.read(transactionsProvider.notifier).deleteTransaction(txId);
+            },
+            child: const Text('DELETE'),
+          ),
+        ],
       ),
     );
   }

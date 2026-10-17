@@ -1,8 +1,24 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/storage/secure_storage_service.dart';
 import '../../data/auth_repository.dart';
 import '../../data/models/user_model.dart';
+
+class LoginResult {
+  final bool success;
+  final bool hasActiveSession;
+  final String? activeDevice;
+  final String? errorMessage;
+
+  const LoginResult({
+    required this.success,
+    this.hasActiveSession = false,
+    this.activeDevice,
+    this.errorMessage,
+  });
+}
 
 class AuthState {
   final UserModel? user;
@@ -39,11 +55,44 @@ final authControllerProvider = NotifierProvider<AuthController, AuthState>(AuthC
 
 class AuthController extends Notifier<AuthState> {
   AuthRepository get _repo => ref.read(authRepositoryProvider);
+  Timer? _sessionPollTimer;
 
   @override
   AuthState build() {
+    ref.onDispose(() {
+      _stopSessionPolling();
+    });
+
+    ApiClient.onSessionRevoked = () {
+      _stopSessionPolling();
+      state = const AuthState(
+        isAuthenticated: false,
+        errorMessage: 'Account was logged in from another device. Please log in again.',
+      );
+    };
     Future.microtask(() => checkInitialAuth());
     return const AuthState(isLoading: true);
+  }
+
+  void _startSessionPolling() {
+    _sessionPollTimer?.cancel();
+    // Poll every 8 seconds to instantly detect logins from another device
+    _sessionPollTimer = Timer.periodic(const Duration(seconds: 8), (_) async {
+      if (!state.isAuthenticated) {
+        _stopSessionPolling();
+        return;
+      }
+      try {
+        await _repo.getMe();
+      } catch (_) {
+        // ApiClient interceptor catches 401 SESSION_REVOKED and calls onSessionRevoked
+      }
+    });
+  }
+
+  void _stopSessionPolling() {
+    _sessionPollTimer?.cancel();
+    _sessionPollTimer = null;
   }
 
   Future<void> checkInitialAuth() async {
@@ -56,9 +105,29 @@ class AuthController extends Notifier<AuthState> {
 
       try {
         final freshUser = await _repo.getMe();
-        if (freshUser != null) user = freshUser;
+        if (freshUser != null) {
+          user = freshUser;
+          state = state.copyWith(
+            user: user,
+            isAuthenticated: true,
+            isLoading: false,
+          );
+          _startSessionPolling();
+          return;
+        }
+      } on ApiException catch (e) {
+        if (e.statusCode == 401 || e.code == 'SESSION_REVOKED') {
+          await SecureStorageService.clearAll();
+          state = const AuthState(
+            user: null,
+            isAuthenticated: false,
+            isLoading: false,
+            errorMessage: 'Account was logged in from another device. Please log in again.',
+          );
+          return;
+        }
       } catch (_) {
-        // Offline or token expired; proceed with cached user if token exists
+        // Offline network error: allow cached user only if demo or valid
       }
 
       state = state.copyWith(
@@ -66,6 +135,7 @@ class AuthController extends Notifier<AuthState> {
         isAuthenticated: true,
         isLoading: false,
       );
+      _startSessionPolling();
     } else {
       state = state.copyWith(
         user: null,
@@ -75,22 +145,37 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
-  Future<bool> login(String email, String password) async {
+  Future<LoginResult> login(String email, String password, {bool force = false}) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final response = await _repo.login(email: email, password: password);
+      final response = await _repo.login(email: email, password: password, force: force);
       state = state.copyWith(
         user: response.user,
         isAuthenticated: true,
         isLoading: false,
       );
-      return true;
+      _startSessionPolling();
+      return const LoginResult(success: true);
     } on ApiException catch (e) {
-      state = state.copyWith(isLoading: false, errorMessage: e.message);
-      return false;
+      final hasActiveSession = e.code == 'ACTIVE_SESSION_EXISTS';
+      final activeDevice = e.data is Map ? e.data['activeDevice']?.toString() : null;
+
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.message,
+      );
+      return LoginResult(
+        success: false,
+        hasActiveSession: hasActiveSession,
+        activeDevice: activeDevice,
+        errorMessage: e.message,
+      );
     } catch (e) {
       state = state.copyWith(isLoading: false, errorMessage: 'An unexpected error occurred');
-      return false;
+      return const LoginResult(
+        success: false,
+        errorMessage: 'An unexpected error occurred',
+      );
     }
   }
 
@@ -113,6 +198,7 @@ class AuthController extends Notifier<AuthState> {
         isAuthenticated: true,
         isLoading: false,
       );
+      _startSessionPolling();
       return true;
     } on ApiException catch (e) {
       state = state.copyWith(isLoading: false, errorMessage: e.message);
@@ -170,11 +256,13 @@ class AuthController extends Notifier<AuthState> {
   }
 
   Future<void> logout() async {
+    _stopSessionPolling();
     await _repo.logout();
     state = const AuthState(isAuthenticated: false);
   }
 
   Future<void> terminateAccountAndPurgeData() async {
+    _stopSessionPolling();
     state = state.copyWith(isLoading: true);
     await _repo.terminateAccountAndPurgeData();
     state = const AuthState(isAuthenticated: false);

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:ledger_app/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:ledger_app/features/transactions/presentation/controllers/transactions_controller.dart';
 import '../../../../core/services/ad_service.dart';
 import '../../../../core/services/pdf_report_service.dart';
 import '../../../../core/storage/secure_storage_service.dart';
@@ -243,6 +244,8 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(transactionsProvider, (_, next) => _loadReportData());
+
     final authState = ref.watch(authControllerProvider);
     final user = authState.user;
     final currency = user?.currencySymbol ?? '₹';

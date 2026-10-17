@@ -193,7 +193,9 @@ final List<RouteBase> _appRoutes = [
     GoRoute(
       path: '/add-debt',
       parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const AddDebtScreen(),
+      builder: (context, state) => AddDebtScreen(
+        debtToEdit: state.extra as Map<String, dynamic>?,
+      ),
     ),
     GoRoute(
       path: '/settings',

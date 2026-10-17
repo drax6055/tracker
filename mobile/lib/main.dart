@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/security/privacy_curtain.dart';
@@ -8,13 +9,38 @@ import 'router/app_router.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await ReminderNotificationService().initialize();
-  await AdService.instance.initialize();
+
+  // Global Flutter error handler
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    if (kDebugMode) {
+      debugPrint('[FlutterError] ${details.exceptionAsString()}');
+    }
+  };
+
+  // Launch UI immediately so the app opens instantly
   runApp(
     const ProviderScope(
       child: LedgerApp(),
     ),
   );
+
+  // Initialize native background services safely without blocking app launch
+  _initializeBackgroundServices();
+}
+
+Future<void> _initializeBackgroundServices() async {
+  try {
+    await ReminderNotificationService().initialize();
+  } catch (e, stack) {
+    debugPrint('[Startup] ReminderNotificationService init error: $e\n$stack');
+  }
+
+  try {
+    await AdService.instance.initialize();
+  } catch (e, stack) {
+    debugPrint('[Startup] AdService init error: $e\n$stack');
+  }
 }
 
 class LedgerApp extends ConsumerWidget {

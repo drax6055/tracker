@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import '../../../../core/constants/api_endpoints.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
@@ -15,6 +16,9 @@ class AuthRepository {
     required String confirmPassword,
   }) async {
     try {
+      final deviceId = await SecureStorageService.getDeviceId();
+      final deviceName = SecureStorageService.getDeviceName();
+
       final response = await _client.dio.post(
         ApiEndpoints.register,
         data: {
@@ -22,18 +26,26 @@ class AuthRepository {
           'email': email,
           'password': password,
           'confirmPassword': confirmPassword,
+          'device': deviceName,
+          'deviceId': deviceId,
         },
       );
 
       final data = response.data['data'];
       final authResponse = AuthResponse.fromJson(data);
 
+      await SecureStorageService.clearAll();
       await SecureStorageService.saveAccessToken(authResponse.accessToken);
       await SecureStorageService.saveRefreshToken(authResponse.refreshToken);
       await SecureStorageService.saveUser(authResponse.user.toJson());
       await SecureStorageService.saveCurrency(authResponse.user.currency);
 
       return authResponse;
+    } on DioException catch (e) {
+      if (e.error is ApiException) {
+        throw e.error as ApiException;
+      }
+      throw ApiException(message: 'Registration failed: ${e.message}');
     } on ApiException {
       rethrow;
     } catch (e) {
@@ -44,25 +56,38 @@ class AuthRepository {
   Future<AuthResponse> login({
     required String email,
     required String password,
+    bool force = false,
   }) async {
     try {
+      final deviceId = await SecureStorageService.getDeviceId();
+      final deviceName = SecureStorageService.getDeviceName();
+
       final response = await _client.dio.post(
         ApiEndpoints.login,
         data: {
           'email': email,
           'password': password,
+          'device': deviceName,
+          'deviceId': deviceId,
+          'force': force,
         },
       );
 
       final data = response.data['data'];
       final authResponse = AuthResponse.fromJson(data);
 
+      await SecureStorageService.clearAll();
       await SecureStorageService.saveAccessToken(authResponse.accessToken);
       await SecureStorageService.saveRefreshToken(authResponse.refreshToken);
       await SecureStorageService.saveUser(authResponse.user.toJson());
       await SecureStorageService.saveCurrency(authResponse.user.currency);
 
       return authResponse;
+    } on DioException catch (e) {
+      if (e.error is ApiException) {
+        throw e.error as ApiException;
+      }
+      throw ApiException(message: 'Login failed: ${e.message}');
     } on ApiException {
       rethrow;
     } catch (e) {

@@ -226,6 +226,167 @@ class ReminderNotificationService {
     onTriggered?.call();
   }
 
+  /// Schedule monthly repeating notification for EMI on [dueDay] of month at 9:00 AM
+  Future<void> scheduleEmiReminder({
+    required int notificationId,
+    required String loanTitle,
+    required double emiAmount,
+    required int dueDay,
+    required String currency,
+  }) async {
+    await initialize();
+    try {
+      if (!kIsWeb) {
+        final now = DateTime.now();
+        var scheduledYear = now.year;
+        var scheduledMonth = now.month;
+
+        // If today is past dueDay, schedule for next month
+        if (now.day > dueDay || (now.day == dueDay && now.hour >= 9)) {
+          if (scheduledMonth == 12) {
+            scheduledMonth = 1;
+            scheduledYear++;
+          } else {
+            scheduledMonth++;
+          }
+        }
+
+        // Clamp dueDay to month's last day (e.g. Feb 28)
+        final lastDay = DateTime(scheduledYear, scheduledMonth + 1, 0).day;
+        final day = dueDay > lastDay ? lastDay : dueDay;
+
+        final tz.TZDateTime scheduledDate = tz.TZDateTime(
+          tz.local,
+          scheduledYear,
+          scheduledMonth,
+          day,
+          9, // 9:00 AM
+          0,
+        );
+
+        const details = NotificationDetails(
+          android: AndroidNotificationDetails(
+            'emi_reminders',
+            'EMI & Loan Reminders',
+            channelDescription: 'Notifications for upcoming and due EMI installments',
+            importance: Importance.max,
+            priority: Priority.high,
+            icon: '@mipmap/ic_launcher',
+            enableVibration: true,
+            playSound: true,
+          ),
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+          ),
+        );
+
+        await _notificationsPlugin.zonedSchedule(
+          id: notificationId,
+          title: 'EMI PAYMENT DUE TODAY',
+          body: '$loanTitle: EMI of $currency${emiAmount.toStringAsFixed(0)} is due today. Tap to record payment.',
+          scheduledDate: scheduledDate,
+          notificationDetails: details,
+          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          matchDateTimeComponents: DateTimeComponents.dayOfMonthAndTime,
+        );
+
+        if (kDebugMode) {
+          print('[NotificationService] Scheduled EMI reminder #$notificationId for $loanTitle on day $day of month.');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('[NotificationService] Error scheduling EMI reminder: $e');
+      }
+    }
+  }
+
+  /// Schedule monthly recurring reminder for Credit Card bill/EMI payment
+  Future<void> scheduleCreditCardReminder({
+    required int notificationId,
+    required String cardTitle,
+    required double outstandingAmount,
+    required int dueDay,
+    required String currency,
+  }) async {
+    await initialize();
+
+    try {
+      if (!kIsWeb) {
+        final now = DateTime.now();
+        var scheduledYear = now.year;
+        var scheduledMonth = now.month;
+
+        // If today is past dueDay, schedule for next month
+        if (now.day > dueDay || (now.day == dueDay && now.hour >= 9)) {
+          if (scheduledMonth == 12) {
+            scheduledMonth = 1;
+            scheduledYear++;
+          } else {
+            scheduledMonth++;
+          }
+        }
+
+        final lastDay = DateTime(scheduledYear, scheduledMonth + 1, 0).day;
+        final day = dueDay > lastDay ? lastDay : dueDay;
+
+        final tz.TZDateTime scheduledDate = tz.TZDateTime(
+          tz.local,
+          scheduledYear,
+          scheduledMonth,
+          day,
+          9, // 9:00 AM
+          0,
+        );
+
+        const details = NotificationDetails(
+          android: AndroidNotificationDetails(
+            'card_bill_reminders',
+            'Credit Card Bill Reminders',
+            channelDescription: 'Notifications for credit card bill payment due dates',
+            importance: Importance.max,
+            priority: Priority.high,
+            icon: '@mipmap/ic_launcher',
+            enableVibration: true,
+            playSound: true,
+          ),
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+          ),
+        );
+
+        await _notificationsPlugin.zonedSchedule(
+          id: notificationId,
+          title: 'CREDIT CARD BILL DUE TODAY',
+          body: '$cardTitle: Payment of $currency${outstandingAmount.toStringAsFixed(0)} is due today. Tap to record payment.',
+          scheduledDate: scheduledDate,
+          notificationDetails: details,
+          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          matchDateTimeComponents: DateTimeComponents.dayOfMonthAndTime,
+        );
+
+        if (kDebugMode) {
+          print('[NotificationService] Scheduled Card Bill reminder #$notificationId for $cardTitle on day $day of month.');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('[NotificationService] Error scheduling Card Bill reminder: $e');
+      }
+    }
+  }
+
+  /// Cancel notification by ID
+  Future<void> cancelNotification(int id) async {
+    try {
+      await _notificationsPlugin.cancel(id: id);
+    } catch (_) {}
+  }
+
   /// Calculate the next instance of [hour]:[minute] in the local timezone
   tz.TZDateTime _nextInstanceOfTime(int hour, int minute) {
     final tz.Location location = tz.local;

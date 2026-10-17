@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/storage/secure_storage_service.dart';
@@ -9,15 +10,16 @@ import '../../../../core/widgets/brutal_button.dart';
 import '../../../../core/widgets/brutal_card.dart';
 import '../../../../core/widgets/brutal_text_field.dart';
 import '../../../../core/widgets/brutal_toast.dart';
+import '../controllers/transactions_controller.dart';
 
-class AddTransactionScreen extends StatefulWidget {
+class AddTransactionScreen extends ConsumerStatefulWidget {
   const AddTransactionScreen({super.key});
 
   @override
-  State<AddTransactionScreen> createState() => _AddTransactionScreenState();
+  ConsumerState<AddTransactionScreen> createState() => _AddTransactionScreenState();
 }
 
-class _AddTransactionScreenState extends State<AddTransactionScreen> {
+class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   String _selectedType = 'EXPENSE'; // EXPENSE, INCOME, TRANSFER
   String _selectedAccount = '';
   String _selectedDestination = '';
@@ -37,8 +39,26 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   Future<void> _loadData() async {
-    final cats = await SecureStorageService.getCategories();
-    final accsRaw = await SecureStorageService.getAccounts();
+    var cats = await SecureStorageService.getCategories();
+    if (cats.isEmpty) {
+      cats = ['General', 'Food & Dining', 'Salary', 'Shopping', 'Bills', 'Travel'];
+      await SecureStorageService.saveCategories(cats);
+    }
+
+    var accsRaw = await SecureStorageService.getAccounts();
+    if (accsRaw.isEmpty) {
+      accsRaw = [
+        {
+          'id': 'acc_${DateTime.now().millisecondsSinceEpoch}',
+          'title': 'Primary Vault (Cash)',
+          'subtitle': 'Safe Box & Pocket Wallet',
+          'balance': 0.0,
+          'type': 'CASH',
+          'digits': 'VAL',
+        }
+      ];
+      await SecureStorageService.saveAccounts(accsRaw);
+    }
     final accNames = accsRaw.map((a) => (a['title'] ?? 'Account').toString()).toList();
 
     if (!mounted) return;
@@ -420,7 +440,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       'note': _noteController.text.trim(),
     };
 
-    await SecureStorageService.addTransaction(newTx);
+    await ref.read(transactionsProvider.notifier).addTransaction(newTx);
 
     if (mounted) {
       BrutalToast.showSuccess(context, 'TRANSACTION RECORDED');

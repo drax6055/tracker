@@ -12,6 +12,8 @@ import '../../../../core/widgets/brutal_toast.dart';
 import '../../../../core/storage/secure_storage_service.dart';
 import '../../../../core/services/reminder_notification_service.dart';
 import 'package:ledger_app/features/auth/presentation/controllers/auth_controller.dart';
+import 'package:ledger_app/features/transactions/presentation/controllers/transactions_controller.dart';
+import 'package:ledger_app/features/debts/presentation/controllers/debts_controller.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -22,6 +24,8 @@ class DashboardScreen extends ConsumerStatefulWidget {
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   double netWorth = 0.0;
+  double totalAssets = 0.0;
+  double totalLiabilities = 0.0;
   double thisMonthIncome = 0.0;
   double thisMonthExpense = 0.0;
   double toPay = 0.0;
@@ -53,45 +57,54 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
       if (isDemo && accs.isEmpty && txs.isEmpty) {
         netWorth = 845200.0;
+        totalAssets = 1250000.0;
+        totalLiabilities = 404800.0;
         thisMonthIncome = 125000.0;
         thisMonthExpense = 48500.0;
         toPay = 18000.0;
         toReceive = 35000.0;
       } else {
-        double nw = 0.0;
+        double assets = 0.0;
+        double liabilities = 0.0;
         for (final a in accs) {
           if (a['includeInNetWorth'] == false) continue;
           final bal = (a['balance'] as num?)?.toDouble() ?? 0.0;
-          final type = (a['type'] ?? 'BANK').toString();
+          final type = (a['type'] ?? 'BANK').toString().toUpperCase();
           if (type == 'LOAN' || type == 'CREDIT_CARD') {
-            nw -= bal;
+            liabilities += bal;
           } else {
-            nw += bal;
+            assets += bal;
           }
         }
-        netWorth = nw;
-
-        double inc = 0.0;
-        double exp = 0.0;
-        for (final t in txs) {
-          final amt = (t['amount'] as num?)?.toDouble() ?? 0.0;
-          final type = (t['type'] ?? 'EXPENSE').toString();
-          if (type == 'INCOME') inc += amt;
-          if (type == 'EXPENSE') exp += amt;
-        }
-        thisMonthIncome = inc;
-        thisMonthExpense = exp;
 
         double tp = 0.0;
         double tr = 0.0;
         for (final d in debts) {
           final amt = (d['remainingAmount'] as num?)?.toDouble() ?? 0.0;
-          final type = (d['type'] ?? 'BORROWED').toString();
+          final type = (d['type'] ?? 'BORROWED').toString().toUpperCase();
           if (type == 'BORROWED') tp += amt;
           if (type == 'LENT') tr += amt;
         }
         toPay = tp;
         toReceive = tr;
+
+        liabilities += tp;
+        assets += tr;
+
+        totalAssets = assets;
+        totalLiabilities = liabilities;
+        netWorth = assets - liabilities;
+
+        double inc = 0.0;
+        double exp = 0.0;
+        for (final t in txs) {
+          final amt = (t['amount'] as num?)?.toDouble() ?? 0.0;
+          final type = (t['type'] ?? 'EXPENSE').toString().toUpperCase();
+          if (type == 'INCOME') inc += amt;
+          if (type == 'EXPENSE') exp += amt;
+        }
+        thisMonthIncome = inc;
+        thisMonthExpense = exp;
       }
     });
   }
@@ -106,6 +119,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final authState = ref.watch(authControllerProvider);
     final user = authState.user;
     final currency = user?.currencySymbol ?? '₹';
+    ref.listen(transactionsProvider, (_, next) => _loadDashboardData());
+    ref.listen(debtsProvider, (_, next) => _loadDashboardData());
+
     final savings = thisMonthIncome - thisMonthExpense;
     final savingsRate = (thisMonthIncome > 0) ? (savings / thisMonthIncome * 100).toStringAsFixed(1) : '0';
 
@@ -117,7 +133,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           IconButton(
             icon: const Icon(Icons.settings_outlined, color: BrutalColors.textPrimary),
             tooltip: 'Vault Preferences & Settings',
-            onPressed: () => context.push('/settings'),
+            onPressed: () async {
+              await context.push('/settings');
+              _loadDashboardData();
+            },
           ),
           const SizedBox(width: 8),
         ],
@@ -127,7 +146,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           color: BrutalColors.primaryYellow,
           backgroundColor: BrutalColors.surface,
           onRefresh: () async {
-            await Future.delayed(const Duration(milliseconds: 600));
+            await _loadDashboardData();
           },
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -185,8 +204,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          _buildAssetLiabPill('ASSETS', 1250000, BrutalColors.green, currency),
-                          _buildAssetLiabPill('LIABILITIES', 404800, BrutalColors.red, currency),
+                          _buildAssetLiabPill('ASSETS', totalAssets, BrutalColors.green, currency),
+                          _buildAssetLiabPill('LIABILITIES', totalLiabilities, BrutalColors.red, currency),
                         ],
                       ),
                     ],
@@ -655,9 +674,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 BrutalButton(
                   text: '+ NEW EXPENSE / INCOME',
                   backgroundColor: BrutalColors.primaryYellow,
-                  onPressed: () {
+                  onPressed: () async {
                     Navigator.pop(ctx);
-                    context.push('/add-transaction');
+                    await context.push('/add-transaction');
+                    _loadDashboardData();
                   },
                 ),
                 const SizedBox(height: 12),
@@ -665,9 +685,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   text: 'TRANSFER (ACCOUNT TO ACCOUNT)',
                   backgroundColor: BrutalColors.cyan,
                   textColor: BrutalColors.textDark,
-                  onPressed: () {
+                  onPressed: () async {
                     Navigator.pop(ctx);
-                    context.push('/add-transaction');
+                    await context.push('/add-transaction');
+                    _loadDashboardData();
                   },
                 ),
                 const SizedBox(height: 12),
@@ -675,9 +696,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   text: 'RECORD DEBT (BORROW / LEND)',
                   backgroundColor: BrutalColors.lime,
                   textColor: BrutalColors.textDark,
-                  onPressed: () {
+                  onPressed: () async {
                     Navigator.pop(ctx);
-                    context.push('/add-debt');
+                    await context.push('/add-debt');
+                    _loadDashboardData();
                   },
                 ),
               ],

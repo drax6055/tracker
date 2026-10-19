@@ -255,6 +255,12 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
+  Future<void> requirePasswordLogin() async {
+    _stopSessionPolling();
+    await SecureStorageService.clearAuthTokensOnly();
+    state = const AuthState(isAuthenticated: false, isLoading: false);
+  }
+
   Future<void> logout() async {
     _stopSessionPolling();
     await _repo.logout();

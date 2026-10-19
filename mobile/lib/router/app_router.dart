@@ -42,14 +42,20 @@ class RouterNotifier extends ChangeNotifier {
         loc == '/verify-otp' ||
         loc == '/reset-password';
 
-    // 1. Initial auth loading state:
-    // If navigating directly to a deep URL while auth is checking secure storage,
-    // show splash to prevent unauthenticated access.
-    if (authState.isLoading) {
-      return loc == '/' ? null : '/';
+    // 1. Splash screen:
+    // When the app starts on '/', let SplashScreen perform boot and biometric checks.
+    if (loc == '/') {
+      return null;
     }
 
-    // 2. Unauthenticated User Guard:
+    // 2. Loading state:
+    // Only redirect to '/' if someone is attempting to access a protected route while initial auth is loading.
+    // If the user is on an auth route (/login, /register, etc.), NEVER redirect away to '/'!
+    if (authState.isLoading) {
+      return isAuthRoute ? null : '/';
+    }
+
+    // 3. Unauthenticated User Guard:
     if (!authState.isAuthenticated) {
       if (!isAuthRoute) {
         return '/login';
@@ -57,14 +63,13 @@ class RouterNotifier extends ChangeNotifier {
       return null;
     }
 
-    // 3. Authenticated User Guard:
+    // 4. Authenticated User Guard:
     if (authState.isAuthenticated) {
-      if (loc == '/enable-biometric' || loc == '/biometric-unlock' || loc == '/') {
+      if (loc == '/enable-biometric' || loc == '/biometric-unlock') {
         return null;
       }
-      if (isAuthRoute) {
-        return '/dashboard';
-      }
+      // Allow active auth flows on /login or /register to navigate intentionally
+      return null;
     }
 
     return null;

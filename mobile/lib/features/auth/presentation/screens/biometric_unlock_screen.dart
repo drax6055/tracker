@@ -67,7 +67,7 @@ class _BiometricUnlockScreenState extends ConsumerState<BiometricUnlockScreen> {
   }
 
   Future<void> _loginWithPassword() async {
-    await ref.read(authControllerProvider.notifier).logout();
+    await ref.read(authControllerProvider.notifier).requirePasswordLogin();
     if (mounted) {
       context.go('/login');
     }

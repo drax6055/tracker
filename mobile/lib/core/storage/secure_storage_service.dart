@@ -516,16 +516,30 @@ class SecureStorageService {
     }
   }
 
-  // Clear All (Logout)
+  // Clear Auth Tokens Only (keeps settings, biometric state, and device ID)
+  static Future<void> clearAuthTokensOnly() async {
+    await _storage.delete(key: _accessTokenKey);
+    await _storage.delete(key: _refreshTokenKey);
+  }
+
+  // Clear All (Logout) - preserves hardware/device-level settings
   static Future<void> clearAll() async {
     _memTransactions = null;
     _memAccounts = null;
     _memCategories = null;
     _memDebts = null;
     final devId = await _storage.read(key: _deviceIdKey);
+    final bioEnabled = await _storage.read(key: _biometricEnabledKey);
+    final bioPrompt = await _storage.read(key: _biometricPromptShownKey);
     await _storage.deleteAll();
     if (devId != null) {
       await _storage.write(key: _deviceIdKey, value: devId);
+    }
+    if (bioEnabled != null) {
+      await _storage.write(key: _biometricEnabledKey, value: bioEnabled);
+    }
+    if (bioPrompt != null) {
+      await _storage.write(key: _biometricPromptShownKey, value: bioPrompt);
     }
   }
 }

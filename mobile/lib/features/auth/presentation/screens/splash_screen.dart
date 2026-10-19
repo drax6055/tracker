@@ -24,8 +24,16 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   Future<void> _checkAuth() async {
-    await Future.delayed(const Duration(milliseconds: 1200));
+    await Future.delayed(const Duration(milliseconds: 800));
     if (!mounted) return;
+
+    // Ensure initial auth check in authController finishes loading
+    int waitCount = 0;
+    while (ref.read(authControllerProvider).isLoading && waitCount < 20) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      waitCount++;
+      if (!mounted) return;
+    }
 
     final authState = ref.read(authControllerProvider);
     if (authState.isAuthenticated) {
@@ -34,15 +42,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
       if (biometricEnabled && canBiometric && mounted) {
         context.go('/biometric-unlock');
-      } else {
-        // If biometric is NOT enabled: ask ID & password every time
-        await ref.read(authControllerProvider.notifier).logout();
-        if (mounted) {
-          context.go('/login');
-        }
+        return;
+      }
+
+      // If biometric is NOT enabled: ask ID & password every time the app opens
+      await ref.read(authControllerProvider.notifier).requirePasswordLogin();
+      if (mounted) {
+        context.go('/login');
       }
     } else {
-      context.go('/login');
+      if (mounted) {
+        context.go('/login');
+      }
     }
   }
 

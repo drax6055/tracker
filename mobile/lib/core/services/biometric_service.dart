@@ -12,9 +12,14 @@ class BiometricService {
   Future<bool> canAuthenticate() async {
     if (kIsWeb) return false;
     try {
-      final canCheck = await _auth.canCheckBiometrics;
-      final isDeviceSupported = await _auth.isDeviceSupported();
-      return canCheck || isDeviceSupported;
+      return await Future.any([
+        Future(() async {
+          final canCheck = await _auth.canCheckBiometrics;
+          final isDeviceSupported = await _auth.isDeviceSupported();
+          return canCheck || isDeviceSupported;
+        }),
+        Future.delayed(const Duration(seconds: 2), () => false),
+      ]);
     } catch (e) {
       debugPrint('[BiometricService] canAuthenticate error: $e');
       return false;
@@ -25,7 +30,10 @@ class BiometricService {
   Future<List<BiometricType>> getAvailableBiometrics() async {
     if (kIsWeb) return [];
     try {
-      return await _auth.getAvailableBiometrics();
+      return await _auth.getAvailableBiometrics().timeout(
+        const Duration(seconds: 2),
+        onTimeout: () => [],
+      );
     } catch (e) {
       debugPrint('[BiometricService] getAvailableBiometrics error: $e');
       return [];
@@ -49,6 +57,9 @@ class BiometricService {
           biometricOnly: false,
           useErrorDialogs: true,
         ),
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () => false,
       );
     } on PlatformException catch (e) {
       debugPrint('[BiometricService] PlatformException: ${e.code} - ${e.message}');

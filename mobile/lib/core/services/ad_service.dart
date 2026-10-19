@@ -9,13 +9,16 @@ class AdService {
   bool _isInitialized = false;
   bool get isInitialized => _isInitialized;
 
-  // Official Google Sample / Test Ad Unit IDs
+  RewardedAd? _preloadedAd;
+  bool _isLoadingPreload = false;
+
+  // Production Google AdMob Rewarded Ad Unit IDs
   static String get rewardedAdUnitId {
     if (kIsWeb) return '';
     if (Platform.isAndroid) {
-      return 'ca-app-pub-3940256099942544/5224354917'; // Official Android test rewarded ad ID
+      return 'ca-app-pub-6882482812110955/8705983307'; // Production Android rewarded ad ID
     } else if (Platform.isIOS) {
-      return 'ca-app-pub-3940256099942544/1712485313'; // Official iOS test rewarded ad ID
+      return 'ca-app-pub-6882482812110955/8705983307'; // Production iOS rewarded ad ID
     }
     return '';
   }
@@ -30,13 +33,39 @@ class AdService {
     try {
       await MobileAds.instance.initialize();
       _isInitialized = true;
+      preloadRewardedAd();
       debugPrint('[AdService] Google Mobile Ads SDK initialized successfully.');
     } catch (e) {
       debugPrint('[AdService] MobileAds initialize error: $e');
     }
   }
 
-  /// Attempts to load and display a real Google AdMob Rewarded Video ad.
+  /// Pre-loads a rewarded ad so it displays with zero delay when requested.
+  void preloadRewardedAd() {
+    if (kIsWeb || !_isInitialized || _isLoadingPreload || _preloadedAd != null) return;
+    final adUnitId = rewardedAdUnitId;
+    if (adUnitId.isEmpty) return;
+
+    _isLoadingPreload = true;
+    RewardedAd.load(
+      adUnitId: adUnitId,
+      request: const AdRequest(),
+      rewardedAdLoadCallback: RewardedAdLoadCallback(
+        onAdLoaded: (RewardedAd ad) {
+          _preloadedAd = ad;
+          _isLoadingPreload = false;
+          debugPrint('[AdService] RewardedAd preloaded successfully in background.');
+        },
+        onAdFailedToLoad: (LoadAdError error) {
+          _preloadedAd = null;
+          _isLoadingPreload = false;
+          debugPrint('[AdService] RewardedAd preload failed: $error');
+        },
+      ),
+    );
+  }
+
+  /// Attempts to display a real Google AdMob Rewarded Video ad.
   /// If it succeeds and the user watches the entire video: calls [onUserEarnedReward].
   /// If the user dismisses/skips before completion: calls [onAdDismissedWithoutReward].
   /// If loading or showing fails: calls [onAdFailed].
@@ -56,47 +85,76 @@ class AdService {
       return;
     }
 
-    bool rewardEarned = false;
+    // If preloaded ad is ready, use it immediately
+    if (_preloadedAd != null) {
+      final ad = _preloadedAd!;
+      _preloadedAd = null;
+      _presentAd(
+        ad: ad,
+        onUserEarnedReward: onUserEarnedReward,
+        onAdDismissedWithoutReward: onAdDismissedWithoutReward,
+        onAdFailed: onAdFailed,
+      );
+      return;
+    }
 
+    // Otherwise load on-demand
     RewardedAd.load(
       adUnitId: adUnitId,
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (RewardedAd ad) {
-          debugPrint('[AdService] RewardedAd loaded successfully.');
-
-          ad.fullScreenContentCallback = FullScreenContentCallback(
-            onAdShowedFullScreenContent: (RewardedAd ad) {
-              debugPrint('[AdService] Ad showed full screen content.');
-            },
-            onAdDismissedFullScreenContent: (RewardedAd ad) {
-              debugPrint('[AdService] Ad dismissed full screen content. Reward earned: $rewardEarned');
-              ad.dispose();
-              if (!rewardEarned) {
-                onAdDismissedWithoutReward();
-              }
-            },
-            onAdFailedToShowFullScreenContent: (RewardedAd ad, AdError error) {
-              debugPrint('[AdService] Ad failed to show: $error');
-              ad.dispose();
-              onAdFailed(error.message);
-            },
-          );
-
-          ad.setImmersiveMode(true);
-          ad.show(
-            onUserEarnedReward: (AdWithoutView ad, RewardItem reward) {
-              debugPrint('[AdService] User earned reward: ${reward.amount} ${reward.type}');
-              rewardEarned = true;
-              onUserEarnedReward();
-            },
+          _presentAd(
+            ad: ad,
+            onUserEarnedReward: onUserEarnedReward,
+            onAdDismissedWithoutReward: onAdDismissedWithoutReward,
+            onAdFailed: onAdFailed,
           );
         },
         onAdFailedToLoad: (LoadAdError error) {
           debugPrint('[AdService] RewardedAd failed to load: $error');
+          preloadRewardedAd();
           onAdFailed(error.message);
         },
       ),
+    );
+  }
+
+  void _presentAd({
+    required RewardedAd ad,
+    required VoidCallback onUserEarnedReward,
+    required VoidCallback onAdDismissedWithoutReward,
+    required void Function(String error) onAdFailed,
+  }) {
+    bool rewardEarned = false;
+
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdShowedFullScreenContent: (RewardedAd ad) {
+        debugPrint('[AdService] Ad showed full screen content.');
+      },
+      onAdDismissedFullScreenContent: (RewardedAd ad) {
+        debugPrint('[AdService] Ad dismissed full screen content. Reward earned: $rewardEarned');
+        ad.dispose();
+        preloadRewardedAd(); // Preload next ad in background
+        if (!rewardEarned) {
+          onAdDismissedWithoutReward();
+        }
+      },
+      onAdFailedToShowFullScreenContent: (RewardedAd ad, AdError error) {
+        debugPrint('[AdService] Ad failed to show: $error');
+        ad.dispose();
+        preloadRewardedAd();
+        onAdFailed(error.message);
+      },
+    );
+
+    ad.setImmersiveMode(true);
+    ad.show(
+      onUserEarnedReward: (AdWithoutView ad, RewardItem reward) {
+        debugPrint('[AdService] User earned reward: ${reward.amount} ${reward.type}');
+        rewardEarned = true;
+        onUserEarnedReward();
+      },
     );
   }
 }

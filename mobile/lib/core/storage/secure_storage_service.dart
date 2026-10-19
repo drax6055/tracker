@@ -79,6 +79,28 @@ class SecureStorageService {
     return {'hour': hour, 'minute': minute};
   }
 
+  // Biometric Authentication Settings
+  static const String _biometricEnabledKey = 'ledger_biometric_enabled';
+  static const String _biometricPromptShownKey = 'ledger_biometric_prompt_shown';
+
+  static Future<void> saveBiometricEnabled(bool enabled) async {
+    await _storage.write(key: _biometricEnabledKey, value: enabled ? 'true' : 'false');
+  }
+
+  static Future<bool> getBiometricEnabled() async {
+    final val = await _storage.read(key: _biometricEnabledKey);
+    return val == 'true';
+  }
+
+  static Future<void> saveBiometricPromptShown(bool shown) async {
+    await _storage.write(key: _biometricPromptShownKey, value: shown ? 'true' : 'false');
+  }
+
+  static Future<bool> getBiometricPromptShown() async {
+    final val = await _storage.read(key: _biometricPromptShownKey);
+    return val == 'true';
+  }
+
   // Demo User Identification
   static Future<bool> isCurrentUserDemo() async {
     final user = await getUser();

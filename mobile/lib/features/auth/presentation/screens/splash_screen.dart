@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/services/biometric_service.dart';
+import '../../../../core/storage/secure_storage_service.dart';
 import '../../../../core/theme/brutal_colors.dart';
 import '../../../../core/theme/brutal_typography.dart';
 import '../../../../core/widgets/brutal_card.dart';
@@ -27,7 +29,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
     final authState = ref.read(authControllerProvider);
     if (authState.isAuthenticated) {
-      context.go('/dashboard');
+      final biometricEnabled = await SecureStorageService.getBiometricEnabled();
+      final canBiometric = await BiometricService.instance.canAuthenticate();
+
+      if (biometricEnabled && canBiometric && mounted) {
+        context.go('/biometric-unlock');
+      } else {
+        // If biometric is NOT enabled: ask ID & password every time
+        await ref.read(authControllerProvider.notifier).logout();
+        if (mounted) {
+          context.go('/login');
+        }
+      }
     } else {
       context.go('/login');
     }

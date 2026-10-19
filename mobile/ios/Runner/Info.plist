@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>GADApplicationIdentifier</key>
+	<string>ca-app-pub-6882482812110955~6738470523</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Authenticate securely to access your financial vault.</string>
 </dict>
 </plist>

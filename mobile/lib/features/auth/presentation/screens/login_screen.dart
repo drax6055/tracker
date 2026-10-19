@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/services/biometric_service.dart';
+import '../../../../core/storage/secure_storage_service.dart';
 import '../../../../core/theme/brutal_colors.dart';
 import '../../../../core/theme/brutal_typography.dart';
 import '../../../../core/widgets/brutal_button.dart';
@@ -112,8 +114,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
 
     if (result.success && mounted) {
-      BrutalToast.showSuccess(context, 'WELCOME BACK!');
-      context.go('/dashboard');
+      final canBiometric = await BiometricService.instance.canAuthenticate();
+      final isAlreadyEnabled = await SecureStorageService.getBiometricEnabled();
+      if (canBiometric && !isAlreadyEnabled && mounted) {
+        context.go('/enable-biometric');
+      } else if (mounted) {
+        BrutalToast.showSuccess(context, 'WELCOME BACK!');
+        context.go('/dashboard');
+      }
     } else if (result.hasActiveSession && mounted) {
       _showActiveSessionDialog(result.activeDevice ?? 'Another Device');
     } else if (mounted) {

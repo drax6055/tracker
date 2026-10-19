@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/services/biometric_service.dart';
 import '../../../../core/services/reminder_notification_service.dart';
 import '../../../../core/storage/secure_storage_service.dart';
 import '../../../../core/theme/brutal_colors.dart';
@@ -25,6 +26,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _reminderEnabled = true;
   TimeOfDay _reminderTime = const TimeOfDay(hour: 21, minute: 0);
   bool _isDemoAccount = false;
+  bool _biometricEnabled = false;
+  bool _biometricSupported = false;
 
   @override
   void initState() {
@@ -32,6 +35,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _loadCurrency();
     _loadReminderSettings();
     _checkIfDemo();
+    _loadBiometricSettings();
   }
 
   Future<void> _checkIfDemo() async {
@@ -56,6 +60,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         minute: timeMap['minute'] ?? 0,
       );
     });
+  }
+
+  Future<void> _loadBiometricSettings() async {
+    final supported = await BiometricService.instance.canAuthenticate();
+    final enabled = await SecureStorageService.getBiometricEnabled();
+    if (mounted) {
+      setState(() {
+        _biometricSupported = supported;
+        _biometricEnabled = enabled;
+      });
+    }
+  }
+
+  void _toggleBiometric(bool val) async {
+    if (val) {
+      final success = await BiometricService.instance.authenticate(
+        localizedReason: 'Scan fingerprint to enable biometric vault unlock',
+      );
+      if (success) {
+        await SecureStorageService.saveBiometricEnabled(true);
+        if (mounted) {
+          setState(() => _biometricEnabled = true);
+          BrutalToast.showSuccess(context, 'FINGERPRINT VAULT UNLOCK ENABLED');
+        }
+      } else {
+        if (mounted) {
+          BrutalToast.showWarning(context, 'Biometric verification cancelled');
+        }
+      }
+    } else {
+      await SecureStorageService.saveBiometricEnabled(false);
+      if (mounted) {
+        setState(() => _biometricEnabled = false);
+        BrutalToast.showWarning(context, 'BIOMETRICS DISABLED (PASSWORD REQUIRED ON LAUNCH)');
+      }
+    }
   }
 
   void _handleCurrencyChange(String newCurrency) async {
@@ -455,6 +495,54 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             // Security Options
             Text('VAULT SECURITY', style: BrutalTypography.label),
             const SizedBox(height: 10),
+            if (_biometricSupported) ...[
+              BrutalCard(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                backgroundColor: BrutalColors.surfaceElevated,
+                borderColor: _biometricEnabled ? BrutalColors.primaryYellow : BrutalColors.borderDim,
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: _biometricEnabled
+                            ? BrutalColors.primaryYellow.withValues(alpha: 0.2)
+                            : BrutalColors.surface,
+                        border: Border.all(color: BrutalColors.borderDim, width: 2),
+                      ),
+                      child: Icon(
+                        Icons.fingerprint,
+                        color: _biometricEnabled ? BrutalColors.primaryYellow : BrutalColors.textSecondary,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('FINGERPRINT UNLOCK', style: BrutalTypography.headingSmall),
+                          const SizedBox(height: 2),
+                          Text(
+                            _biometricEnabled
+                                ? 'Fast unlock active. Prompted on app launch.'
+                                : 'Disabled. Enter ID & password every launch.',
+                            style: BrutalTypography.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch.adaptive(
+                      value: _biometricEnabled,
+                      activeTrackColor: BrutalColors.primaryYellow.withValues(alpha: 0.5),
+                      activeThumbColor: BrutalColors.primaryYellow,
+                      onChanged: _toggleBiometric,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             _buildSettingTile(
               title: 'Change Password',
               subtitle: 'Update your access key',

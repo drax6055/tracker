@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../features/accounts/presentation/screens/accounts_screen.dart';
 import '../features/accounts/presentation/screens/add_account_screen.dart';
 import '../features/auth/presentation/controllers/auth_controller.dart';
+import '../features/auth/presentation/screens/biometric_unlock_screen.dart';
+import '../features/auth/presentation/screens/enable_biometric_screen.dart';
 import '../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../features/auth/presentation/screens/login_screen.dart';
 import '../features/auth/presentation/screens/register_screen.dart';
@@ -57,7 +59,10 @@ class RouterNotifier extends ChangeNotifier {
 
     // 3. Authenticated User Guard:
     if (authState.isAuthenticated) {
-      if (isAuthRoute || loc == '/') {
+      if (loc == '/enable-biometric' || loc == '/biometric-unlock' || loc == '/') {
+        return null;
+      }
+      if (isAuthRoute) {
         return '/dashboard';
       }
     }
@@ -123,6 +128,16 @@ final List<RouteBase> _appRoutes = [
           resetToken: data['resetToken'] ?? '',
         );
       },
+    ),
+    GoRoute(
+      path: '/enable-biometric',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const EnableBiometricScreen(),
+    ),
+    GoRoute(
+      path: '/biometric-unlock',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const BiometricUnlockScreen(),
     ),
 
     // Main App Shell with Bottom Tabs

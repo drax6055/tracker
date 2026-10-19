@@ -188,7 +188,9 @@ final List<RouteBase> _appRoutes = [
     GoRoute(
       path: '/add-transaction',
       parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const AddTransactionScreen(),
+      builder: (context, state) => AddTransactionScreen(
+        transactionToEdit: state.extra as Map<String, dynamic>?,
+      ),
     ),
     GoRoute(
       path: '/add-debt',

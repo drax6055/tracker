@@ -21,6 +21,11 @@ class TransactionsNotifier extends Notifier<List<Map<String, dynamic>>> {
     await loadTransactions();
   }
 
+  Future<void> updateTransaction(Map<String, dynamic> tx) async {
+    await SecureStorageService.updateTransaction(tx);
+    await loadTransactions();
+  }
+
   Future<void> deleteTransaction(String id) async {
     final current = await SecureStorageService.getTransactions();
     current.removeWhere((t) => (t['id'] ?? '').toString() == id);

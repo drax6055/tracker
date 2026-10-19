@@ -342,6 +342,11 @@ class SecureStorageService {
       if (str != null && str.isNotEmpty) {
         final list = jsonDecode(str) as List<dynamic>;
         final res = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        res.sort((a, b) {
+          final tA = DateTime.tryParse(a['timestamp']?.toString() ?? '') ?? DateTime(1970);
+          final tB = DateTime.tryParse(b['timestamp']?.toString() ?? '') ?? DateTime(1970);
+          return tB.compareTo(tA);
+        });
         _memTransactions = List<Map<String, dynamic>>.from(res);
         return res;
       }
@@ -359,6 +364,11 @@ class SecureStorageService {
   static Future<void> addTransaction(Map<String, dynamic> tx) async {
     final current = await getTransactions();
     current.insert(0, tx);
+    current.sort((a, b) {
+      final tA = DateTime.tryParse(a['timestamp']?.toString() ?? '') ?? DateTime(1970);
+      final tB = DateTime.tryParse(b['timestamp']?.toString() ?? '') ?? DateTime(1970);
+      return tB.compareTo(tA);
+    });
     await saveTransactions(current);
 
     // Adjust account balances dynamically
@@ -391,6 +401,20 @@ class SecureStorageService {
       }
     }
     await saveAccounts(accounts);
+  }
+
+  static Future<void> updateTransaction(Map<String, dynamic> tx) async {
+    final current = await getTransactions();
+    final idx = current.indexWhere((t) => (t['id'] ?? '').toString() == (tx['id'] ?? '').toString());
+    if (idx != -1) {
+      current[idx] = tx;
+      current.sort((a, b) {
+        final tA = DateTime.tryParse(a['timestamp']?.toString() ?? '') ?? DateTime(1970);
+        final tB = DateTime.tryParse(b['timestamp']?.toString() ?? '') ?? DateTime(1970);
+        return tB.compareTo(tA);
+      });
+      await saveTransactions(current);
+    }
   }
 
   // Debts & Loans (Dynamic)

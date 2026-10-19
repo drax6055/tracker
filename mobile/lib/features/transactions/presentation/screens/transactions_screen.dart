@@ -285,6 +285,12 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                           return Container(
                             margin: const EdgeInsets.only(bottom: 12),
                             child: GestureDetector(
+                              onTap: () async {
+                                await context.push('/add-transaction', extra: item);
+                                if (mounted) {
+                                  ref.read(transactionsProvider.notifier).loadTransactions();
+                                }
+                              },
                               onLongPress: txId.isNotEmpty
                                   ? () => _showDeleteDialog(txId, title)
                                   : null,

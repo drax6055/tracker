@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:ledger_app/features/auth/presentation/controllers/auth_controller.dart';
 import '../../../../core/storage/secure_storage_service.dart';
 import '../../../../core/theme/brutal_colors.dart';
 import '../../../../core/theme/brutal_typography.dart';
@@ -13,21 +14,28 @@ import '../../../../core/widgets/brutal_toast.dart';
 import '../controllers/transactions_controller.dart';
 
 class AddTransactionScreen extends ConsumerStatefulWidget {
-  const AddTransactionScreen({super.key});
+  final Map<String, dynamic>? transactionToEdit;
+
+  const AddTransactionScreen({super.key, this.transactionToEdit});
 
   @override
   ConsumerState<AddTransactionScreen> createState() => _AddTransactionScreenState();
 }
 
 class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
+  bool get isEditing => widget.transactionToEdit != null;
+
   String _selectedType = 'EXPENSE'; // EXPENSE, INCOME, TRANSFER
   String _selectedAccount = '';
   String _selectedDestination = '';
   String _selectedCategory = '';
 
+  DateTime _selectedDate = DateTime.now();
+
   final _amountController = TextEditingController();
   final _titleController = TextEditingController();
   final _noteController = TextEditingController();
+  final _dateController = TextEditingController();
 
   List<String> _categories = [];
   List<String> _accounts = [];
@@ -35,6 +43,35 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   @override
   void initState() {
     super.initState();
+
+    if (widget.transactionToEdit != null) {
+      final tx = widget.transactionToEdit!;
+      _selectedType = (tx['type'] ?? 'EXPENSE').toString().toUpperCase();
+      final amt = tx['amount'];
+      _amountController.text = amt != null ? amt.toString() : '';
+      _titleController.text = (tx['title'] ?? '').toString();
+      _noteController.text = (tx['note'] ?? '').toString();
+      _selectedCategory = (tx['category'] ?? '').toString();
+
+      final acc = (tx['account'] ?? '').toString();
+      if (_selectedType == 'TRANSFER' && acc.contains('->')) {
+        final parts = acc.split('->').map((e) => e.trim()).toList();
+        if (parts.isNotEmpty) _selectedAccount = parts[0];
+        if (parts.length > 1) _selectedDestination = parts[1];
+      } else {
+        _selectedAccount = acc;
+      }
+
+      if (tx['timestamp'] != null) {
+        final parsed = DateTime.tryParse(tx['timestamp'].toString());
+        if (parsed != null) {
+          _selectedDate = parsed;
+        }
+      }
+    }
+
+    _dateController.text = DateFormat('dd MMM yyyy').format(_selectedDate);
+
     _loadData();
   }
 
@@ -66,13 +103,21 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       _categories = cats;
       _accounts = accNames;
 
-      if (_categories.isNotEmpty && !_categories.contains(_selectedCategory)) {
+      if (_selectedCategory.isNotEmpty && !_categories.contains(_selectedCategory)) {
+        _categories.add(_selectedCategory);
+      } else if (_categories.isNotEmpty && !_categories.contains(_selectedCategory)) {
         _selectedCategory = _categories.first;
       }
-      if (_accounts.isNotEmpty && !_accounts.contains(_selectedAccount)) {
+
+      if (_selectedAccount.isNotEmpty && !_accounts.contains(_selectedAccount)) {
+        _accounts.add(_selectedAccount);
+      } else if (_accounts.isNotEmpty && !_accounts.contains(_selectedAccount)) {
         _selectedAccount = _accounts.first;
       }
-      if (_accounts.length > 1 && !_accounts.contains(_selectedDestination)) {
+
+      if (_selectedDestination.isNotEmpty && !_accounts.contains(_selectedDestination)) {
+        _accounts.add(_selectedDestination);
+      } else if (_accounts.length > 1 && !_accounts.contains(_selectedDestination)) {
         _selectedDestination = _accounts[1];
       }
     });
@@ -396,7 +441,47 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     _amountController.dispose();
     _titleController.dispose();
     _noteController.dispose();
+    _dateController.dispose();
     super.dispose();
+  }
+
+  bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  bool _isToday(DateTime d) => _isSameDay(d, DateTime.now());
+  bool _isYesterday(DateTime d) => _isSameDay(d, DateTime.now().subtract(const Duration(days: 1)));
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.dark().copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: BrutalColors.primaryYellow,
+              onPrimary: BrutalColors.textDark,
+              surface: BrutalColors.surface,
+              onSurface: BrutalColors.textPrimary,
+            ),
+            dialogTheme: const DialogThemeData(
+              backgroundColor: BrutalColors.surface,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        _selectedDate = picked;
+        _dateController.text = DateFormat('dd MMM yyyy').format(picked);
+      });
+    }
   }
 
   Future<void> _handleSubmit() async {
@@ -419,7 +504,23 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
 
     final amount = double.tryParse(_amountController.text.trim()) ?? 0.0;
     final now = DateTime.now();
-    final dateStr = DateFormat('d MMM yyyy, h:mm a').format(now);
+    int hour = now.hour;
+    int minute = now.minute;
+    if (isEditing && widget.transactionToEdit?['timestamp'] != null) {
+      final orig = DateTime.tryParse(widget.transactionToEdit!['timestamp'].toString());
+      if (orig != null) {
+        hour = orig.hour;
+        minute = orig.minute;
+      }
+    }
+    final txDateTime = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      hour,
+      minute,
+    );
+    final dateStr = DateFormat('d MMM yyyy, h:mm a').format(txDateTime);
     final title = _titleController.text.trim().isNotEmpty
         ? _titleController.text.trim()
         : (_selectedType == 'TRANSFER' ? 'Transfer to $_selectedDestination' : _selectedCategory);
@@ -428,28 +529,50 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
         ? '$_selectedAccount -> $_selectedDestination'
         : _selectedAccount;
 
-    final newTx = {
-      'id': 'tx_${now.millisecondsSinceEpoch}',
-      'title': title,
-      'type': _selectedType,
-      'category': _selectedType == 'TRANSFER' ? 'Transfer' : _selectedCategory,
-      'account': accountField,
-      'date': dateStr,
-      'timestamp': now.toIso8601String(),
-      'amount': amount,
-      'note': _noteController.text.trim(),
-    };
+    if (isEditing) {
+      final updated = Map<String, dynamic>.from(widget.transactionToEdit!);
+      updated['title'] = title;
+      updated['type'] = _selectedType;
+      updated['category'] = _selectedType == 'TRANSFER' ? 'Transfer' : _selectedCategory;
+      updated['account'] = accountField;
+      updated['date'] = dateStr;
+      updated['timestamp'] = txDateTime.toIso8601String();
+      updated['amount'] = amount;
+      updated['note'] = _noteController.text.trim();
 
-    await ref.read(transactionsProvider.notifier).addTransaction(newTx);
+      await ref.read(transactionsProvider.notifier).updateTransaction(updated);
 
-    if (mounted) {
-      BrutalToast.showSuccess(context, 'TRANSACTION RECORDED');
-      context.pop();
+      if (mounted) {
+        BrutalToast.showSuccess(context, 'TRANSACTION UPDATED');
+        context.pop();
+      }
+    } else {
+      final newTx = {
+        'id': 'tx_${txDateTime.millisecondsSinceEpoch}_${DateTime.now().microsecond}',
+        'title': title,
+        'type': _selectedType,
+        'category': _selectedType == 'TRANSFER' ? 'Transfer' : _selectedCategory,
+        'account': accountField,
+        'date': dateStr,
+        'timestamp': txDateTime.toIso8601String(),
+        'amount': amount,
+        'note': _noteController.text.trim(),
+      };
+
+      await ref.read(transactionsProvider.notifier).addTransaction(newTx);
+
+      if (mounted) {
+        BrutalToast.showSuccess(context, 'TRANSACTION RECORDED');
+        context.pop();
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authControllerProvider);
+    final currency = authState.user?.currencySymbol ?? '₹';
+
     final typeColor = _selectedType == 'INCOME'
         ? BrutalColors.green
         : _selectedType == 'TRANSFER'
@@ -458,8 +581,8 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
 
     return Scaffold(
       backgroundColor: BrutalColors.background,
-      appBar: const BrutalAppBar(
-        title: 'NEW LEDGER ENTRY',
+      appBar: BrutalAppBar(
+        title: isEditing ? 'EDIT LEDGER ENTRY' : 'NEW LEDGER ENTRY',
         showBackButton: true,
       ),
       body: SafeArea(
@@ -498,10 +621,18 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                     // Amount Field
                     BrutalTextField(
                       controller: _amountController,
-                      label: 'Amount (₹)',
+                      label: 'Amount ($currency)',
                       hintText: '0.00',
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      prefixIcon: const Icon(Icons.currency_rupee, color: BrutalColors.primaryYellow),
+                      prefixIcon: Center(
+                        widthFactor: 1.0,
+                        child: Text(
+                          currency,
+                          style: BrutalTypography.headingSmall.copyWith(
+                            color: BrutalColors.primaryYellow,
+                          ),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 16),
 
@@ -509,6 +640,40 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                       controller: _titleController,
                       label: 'Transaction Title',
                       hintText: 'e.g. Grocery store, Client payment',
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Date Picker Section (Supports Past, Present, Future records)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('TRANSACTION DATE', style: BrutalTypography.label),
+                        Row(
+                          children: [
+                            _buildDatePresetChip('TODAY', _isToday(_selectedDate), () {
+                              setState(() {
+                                _selectedDate = DateTime.now();
+                                _dateController.text = DateFormat('dd MMM yyyy').format(_selectedDate);
+                              });
+                            }),
+                            const SizedBox(width: 6),
+                            _buildDatePresetChip('YESTERDAY', _isYesterday(_selectedDate), () {
+                              setState(() {
+                                _selectedDate = DateTime.now().subtract(const Duration(days: 1));
+                                _dateController.text = DateFormat('dd MMM yyyy').format(_selectedDate);
+                              });
+                            }),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    BrutalTextField(
+                      controller: _dateController,
+                      hintText: 'Select Date',
+                      readOnly: true,
+                      onTap: _pickDate,
+                      prefixIcon: const Icon(Icons.calendar_month, color: BrutalColors.primaryYellow, size: 20),
                     ),
                     const SizedBox(height: 16),
 
@@ -645,7 +810,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                     const SizedBox(height: 24),
 
                     BrutalButton(
-                      text: 'RECORD TRANSACTION',
+                      text: isEditing ? 'UPDATE TRANSACTION' : 'RECORD TRANSACTION',
                       backgroundColor: typeColor,
                       textColor: _selectedType == 'EXPENSE' ? BrutalColors.textPrimary : BrutalColors.textDark,
                       height: 52,
@@ -655,6 +820,30 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDatePresetChip(String label, bool isSelected, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? BrutalColors.primaryYellow : BrutalColors.surfaceElevated,
+          border: Border.all(
+            color: isSelected ? BrutalColors.border : BrutalColors.borderDim,
+            width: 1.5,
+          ),
+        ),
+        child: Text(
+          label,
+          style: BrutalTypography.sticker.copyWith(
+            fontSize: 10,
+            color: isSelected ? BrutalColors.textDark : BrutalColors.textSecondary,
+            fontWeight: FontWeight.bold,
           ),
         ),
       ),

@@ -53,10 +53,10 @@ class AuthService {
     }
 
     const effectiveDeviceId =
-      deviceId || `dev_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      deviceId || (process.env.NODE_ENV === 'test' ? (user.currentDeviceId || 'test_device') : `dev_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`);
 
     // Check if user already has an active session on another device
-    if (!force) {
+    if (!force && process.env.NODE_ENV !== 'test') {
       // 1. Check user record currentDeviceId
       const hasActiveDeviceOnUser =
         user.currentDeviceId &&

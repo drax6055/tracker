@@ -63,6 +63,26 @@ const protect = asyncHandler(async (req, res, next) => {
   }
 });
 
+const optionalAuth = asyncHandler(async (req, res, next) => {
+  let token;
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+    token = req.headers.authorization.split(' ')[1];
+  }
+  if (!token) return next();
+
+  try {
+    const decoded = TokenService.verifyAccessToken(token);
+    const user = await User.findById(decoded.sub);
+    if (user) {
+      req.user = user;
+    }
+  } catch (_) {
+    // Optional auth silently continues if token is invalid or expired
+  }
+  next();
+});
+
 module.exports = {
   protect,
+  optionalAuth,
 };

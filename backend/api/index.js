@@ -2,7 +2,13 @@ const app = require('../src/app');
 const connectDB = require('../src/config/db');
 
 module.exports = async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader(
     'Access-Control-Allow-Headers',
@@ -22,8 +28,8 @@ module.exports = async (req, res) => {
     console.error('[Serverless Gateway Error]', error);
     return res.status(500).json({
       success: false,
-      message: 'Database connection failed. Please verify MongoDB Atlas configuration.',
-      error: error.message,
+      message: 'Service temporarily unavailable. Please try again later.',
+      ...(process.env.NODE_ENV === 'development' && { error: error.message }),
     });
   }
 };

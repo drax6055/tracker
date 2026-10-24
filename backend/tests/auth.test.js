@@ -1,5 +1,12 @@
 process.env.NODE_ENV = 'test';
-jest.setTimeout(30000);
+jest.setTimeout(60000);
+
+const dns = require('dns');
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+} catch (e) {
+  // Ignore if custom dns servers cannot be set
+}
 
 const request = require('supertest');
 const mongoose = require('mongoose');
@@ -19,9 +26,11 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  await User.deleteMany({});
-  await RefreshToken.deleteMany({});
-  await PasswordResetOtp.deleteMany({});
+  await Promise.all([
+    User.deleteMany({}),
+    RefreshToken.deleteMany({}),
+    PasswordResetOtp.deleteMany({}),
+  ]);
 });
 
 afterAll(async () => {

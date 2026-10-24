@@ -11,13 +11,27 @@ const env = require('./config/env');
 
 const app = express();
 
+// Trust reverse proxy for accurate client IP resolution behind Vercel / Cloudflare
+app.set('trust proxy', 1);
+
 // Security HTTP headers
 app.use(helmet());
 
-// Enable CORS
+// Enable CORS with origin validation & credential support
+const allowedOrigins = env.clientUrl && env.clientUrl !== '*'
+  ? env.clientUrl.split(',').map((o) => o.trim())
+  : null;
+
 app.use(
   cors({
-    origin: '*',
+    origin: (origin, callback) => {
+      // Allow requests with no origin (such as mobile apps, curl, server-to-server)
+      if (!origin) return callback(null, true);
+      if (!allowedOrigins || allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+        return callback(null, origin);
+      }
+      return callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
     allowedHeaders: [
       'Content-Type',
@@ -25,6 +39,7 @@ app.use(
       'x-encrypted-payload',
       'Accept',
       'X-Requested-With',
+      'X-CSRF-Token',
     ],
     exposedHeaders: ['x-encrypted-payload'],
   })

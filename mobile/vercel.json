@@ -1,5 +1,8 @@
 {
   "version": 2,
+  "git": {
+    "deploymentEnabled": false
+  },
   "outputDirectory": "build/web",
   "rewrites": [
     {

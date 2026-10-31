@@ -31,12 +31,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
-  void _fillDemoCredentials() {
+  Future<void> _oneTapDemoLogin() async {
     setState(() {
       _emailController.text = 'bruce@wayne.corp';
       _passwordController.text = 'Batman123!';
     });
-    BrutalToast.showSuccess(context, 'DEMO CREDENTIALS LOADED');
+    BrutalToast.showSuccess(context, 'DEMO LOADED // LOGGING IN...');
+    await _handleLogin();
   }
 
   void _showActiveSessionDialog(String activeDevice) {
@@ -170,37 +171,74 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // 1-Tap Fill Demo Credentials
-                  GestureDetector(
-                    onTap: _fillDemoCredentials,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: BrutalColors.surfaceElevated,
-                        border: Border.all(color: BrutalColors.primaryYellow, width: 2.0),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: BrutalColors.primaryYellow,
-                            offset: Offset(3.0, 3.0),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.bolt, size: 20, color: BrutalColors.primaryYellow),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              '1-TAP AUTO-FILL DEMO LOGIN (BRUCE WAYNE)',
+                  // 1-Tap Demo Credentials Card & Button
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: BrutalColors.surfaceElevated,
+                      border: Border.all(color: BrutalColors.primaryYellow, width: 2.0),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: BrutalColors.primaryYellow,
+                          offset: Offset(3.0, 3.0),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.badge_outlined, size: 16, color: BrutalColors.textSecondary),
+                            const SizedBox(width: 6),
+                            Text(
+                              'DEMO CREDENTIALS:',
                               style: BrutalTypography.sticker.copyWith(
-                                color: BrutalColors.primaryYellow,
+                                color: BrutalColors.textSecondary,
                                 fontWeight: FontWeight.bold,
+                                fontSize: 11,
                               ),
                             ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'ID: bruce@wayne.corp   •   Pass: Batman123!',
+                          style: BrutalTypography.bodyMedium.copyWith(
+                            color: BrutalColors.textPrimary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
                           ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 10),
+                        GestureDetector(
+                          onTap: authState.isLoading ? null : _oneTapDemoLogin,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: BrutalColors.primaryYellow,
+                              border: Border.all(color: BrutalColors.border, width: 2.0),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.bolt, size: 20, color: BrutalColors.textDark),
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    '1-TAP DEMO LOGIN',
+                                    style: BrutalTypography.sticker.copyWith(
+                                      color: BrutalColors.textDark,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 1.0,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   // Active Session Warning / Revocation Banner

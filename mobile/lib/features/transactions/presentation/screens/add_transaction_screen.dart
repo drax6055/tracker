@@ -529,12 +529,20 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
         ? '$_selectedAccount -> $_selectedDestination'
         : _selectedAccount;
 
+    final allAccs = await SecureStorageService.getAccounts();
+    final matchingAcc = allAccs.firstWhere(
+      (a) => (a['title'] ?? '').toString() == _selectedAccount,
+      orElse: () => <String, dynamic>{},
+    );
+    final selectedAccountId = matchingAcc['id']?.toString() ?? '';
+
     if (isEditing) {
       final updated = Map<String, dynamic>.from(widget.transactionToEdit!);
       updated['title'] = title;
       updated['type'] = _selectedType;
       updated['category'] = _selectedType == 'TRANSFER' ? 'Transfer' : _selectedCategory;
       updated['account'] = accountField;
+      updated['accountId'] = selectedAccountId;
       updated['date'] = dateStr;
       updated['timestamp'] = txDateTime.toIso8601String();
       updated['amount'] = amount;
@@ -553,6 +561,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
         'type': _selectedType,
         'category': _selectedType == 'TRANSFER' ? 'Transfer' : _selectedCategory,
         'account': accountField,
+        'accountId': selectedAccountId,
         'date': dateStr,
         'timestamp': txDateTime.toIso8601String(),
         'amount': amount,

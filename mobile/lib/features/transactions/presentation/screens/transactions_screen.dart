@@ -87,7 +87,8 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
         final query = _searchController.text.toLowerCase();
         final title = (item['title'] ?? '').toString().toLowerCase();
         final category = (item['category'] ?? '').toString().toLowerCase();
-        if (!title.contains(query) && !category.contains(query)) return false;
+        final account = (item['account'] ?? '').toString().toLowerCase();
+        if (!title.contains(query) && !category.contains(query) && !account.contains(query)) return false;
       }
       if (_selectedDateRange != null && item['timestamp'] != null) {
         DateTime? txDate;

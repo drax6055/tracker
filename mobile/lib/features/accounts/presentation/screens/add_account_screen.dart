@@ -52,6 +52,14 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
       return;
     }
 
+    final existingAccounts = await SecureStorageService.getAccounts();
+    if (existingAccounts.any((a) => (a['title'] ?? '').toString().trim().toLowerCase() == name.toLowerCase())) {
+      if (mounted) {
+        BrutalToast.showError(context, 'AN ACCOUNT NAMED "$name" ALREADY EXISTS');
+      }
+      return;
+    }
+
     final balance = double.tryParse(_balanceController.text.trim()) ?? 0.0;
     final bankName = _bankNameController.text.trim();
     final digits = _digitsController.text.trim();

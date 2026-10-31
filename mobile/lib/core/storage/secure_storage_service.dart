@@ -394,6 +394,7 @@ class SecureStorageService {
     await saveTransactions(current);
 
     // Adjust account balances dynamically
+    final accountId = (tx['accountId'] ?? '').toString();
     final accountName = (tx['account'] ?? '').toString();
     final amount = (tx['amount'] as num?)?.toDouble() ?? 0.0;
     final type = (tx['type'] ?? 'EXPENSE').toString();
@@ -402,23 +403,32 @@ class SecureStorageService {
     if (type == 'TRANSFER' && accountName.contains('->')) {
       final parts = accountName.split('->').map((e) => e.trim()).toList();
       if (parts.length >= 2) {
+        bool fromUpdated = false;
+        bool toUpdated = false;
         for (final acc in accounts) {
-          if ((acc['title'] ?? '') == parts[0]) {
+          final title = (acc['title'] ?? '').toString();
+          if (!fromUpdated && title == parts[0]) {
             acc['balance'] = ((acc['balance'] as num?)?.toDouble() ?? 0.0) - amount;
-          } else if ((acc['title'] ?? '') == parts[1]) {
+            fromUpdated = true;
+          } else if (!toUpdated && title == parts[1]) {
             acc['balance'] = ((acc['balance'] as num?)?.toDouble() ?? 0.0) + amount;
+            toUpdated = true;
           }
+          if (fromUpdated && toUpdated) break;
         }
       }
     } else {
       for (final acc in accounts) {
-        if ((acc['title'] ?? '') == accountName) {
+        final matchesId = accountId.isNotEmpty && (acc['id'] ?? '').toString() == accountId;
+        final matchesName = (acc['title'] ?? '').toString() == accountName;
+        if (matchesId || matchesName) {
           final currentBal = (acc['balance'] as num?)?.toDouble() ?? 0.0;
           if (type == 'EXPENSE') {
             acc['balance'] = currentBal - amount;
           } else if (type == 'INCOME') {
             acc['balance'] = currentBal + amount;
           }
+          break; // Crucial: Stop immediately to prevent double-deducting from any other account!
         }
       }
     }

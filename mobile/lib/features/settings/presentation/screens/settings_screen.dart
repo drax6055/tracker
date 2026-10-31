@@ -549,12 +549,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               icon: Icons.key_outlined,
               onTap: _showChangePasswordDialog,
             ),
-            _buildSettingTile(
-              title: 'Export Ledger Data',
-              subtitle: 'Download complete statement in CSV/PDF format',
-              icon: Icons.file_download_outlined,
-              onTap: () => BrutalToast.showSuccess(context, 'GENERATING EXPORT FILE...'),
-            ),
             const SizedBox(height: 24),
 
             // Danger Zone

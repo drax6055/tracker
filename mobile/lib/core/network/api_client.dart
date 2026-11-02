@@ -65,7 +65,7 @@ class ApiClient {
               !error.requestOptions.path.contains('/auth/login') &&
               !error.requestOptions.path.contains('/auth/refresh')) {
             if (errCode == 'SESSION_REVOKED') {
-              await SecureStorageService.clearAll();
+              await SecureStorageService.clearAuthSession();
               onSessionRevoked?.call();
               return handler.reject(
                 DioException(
@@ -96,7 +96,7 @@ class ApiClient {
               }
             } else {
               // Refresh failed, session was revoked or expired
-              await SecureStorageService.clearAll();
+              await SecureStorageService.clearAuthSession();
               onSessionRevoked?.call();
             }
           }

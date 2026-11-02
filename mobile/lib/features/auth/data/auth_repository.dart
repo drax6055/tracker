@@ -164,7 +164,7 @@ class AuthRepository {
     } catch (_) {
       // Ignore network errors on logout, always clear local credentials
     } finally {
-      await SecureStorageService.clearAll();
+      await SecureStorageService.clearAuthSession();
     }
   }
 
@@ -192,7 +192,7 @@ class AuthRepository {
     } catch (_) {
       // Proceed with local wipe even if server error
     } finally {
-      await SecureStorageService.clearAll();
+      await SecureStorageService.purgeAllData();
     }
   }
 }

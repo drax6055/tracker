@@ -526,14 +526,30 @@ class SecureStorageService {
     }
   }
 
+  // Clear Auth Session Only (keeps user's bank accounts, transactions, debts, categories, and device settings)
+  static Future<void> clearAuthSession() async {
+    _memAccounts = null;
+    _memTransactions = null;
+    _memCategories = null;
+    _memDebts = null;
+    await _storage.delete(key: _accessTokenKey);
+    await _storage.delete(key: _refreshTokenKey);
+    await _storage.delete(key: _userKey);
+  }
+
   // Clear Auth Tokens Only (keeps settings, biometric state, and device ID)
   static Future<void> clearAuthTokensOnly() async {
     await _storage.delete(key: _accessTokenKey);
     await _storage.delete(key: _refreshTokenKey);
   }
 
-  // Clear All (Logout) - preserves hardware/device-level settings
+  // Safe Logout / Session Revocation - NEVER wipes user's bank accounts or transactions!
   static Future<void> clearAll() async {
+    await clearAuthSession();
+  }
+
+  // Hard Purge - ONLY called when user explicitly executes "TERMINATE ACCOUNT & PURGE DATA"
+  static Future<void> purgeAllData() async {
     _memTransactions = null;
     _memAccounts = null;
     _memCategories = null;

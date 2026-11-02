@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/services/cloud_sync_service.dart';
 import '../../../../core/theme/brutal_colors.dart';
 import '../../../../core/theme/brutal_typography.dart';
 import '../../../../core/utils/currency_formatter.dart';
@@ -67,8 +69,19 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
   }
 
   Future<void> _loadAccounts() async {
-    final rawList = await SecureStorageService.getAccounts();
+    // 1. Instant load from local storage
+    var rawList = await SecureStorageService.getAccounts();
+    if (mounted) {
+      _applyAccounts(rawList);
+    }
+    // 2. Background sync with cloud MongoDB
+    await CloudSyncService().syncAccounts();
     if (!mounted) return;
+    rawList = await SecureStorageService.getAccounts();
+    _applyAccounts(rawList);
+  }
+
+  void _applyAccounts(List<Map<String, dynamic>> rawList) {
     setState(() {
       _accounts = rawList.map((m) {
         final type = (m['type'] ?? 'BANK').toString();
@@ -111,6 +124,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
       'includeInNetWorth': a.includeInNetWorth,
     }).toList();
     SecureStorageService.saveAccounts(list);
+    unawaited(CloudSyncService().syncAccounts());
   }
 
   Future<void> _navigateToAddAccount() async {
@@ -427,6 +441,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
           _accounts.removeWhere((a) => a.id == account.id);
         });
         _saveAccounts();
+        unawaited(CloudSyncService().deleteAccount(account.id));
         BrutalToast.showWarning(context, '${account.title.toUpperCase()} PURGED FROM VAULT');
       },
     );

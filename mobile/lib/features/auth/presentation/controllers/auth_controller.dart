@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/storage/secure_storage_service.dart';
+import '../../../../core/services/cloud_sync_service.dart';
 import '../../data/auth_repository.dart';
 import '../../data/models/user_model.dart';
 
@@ -113,11 +114,12 @@ class AuthController extends Notifier<AuthState> {
             isLoading: false,
           );
           _startSessionPolling();
+          unawaited(CloudSyncService().syncAll());
           return;
         }
       } on ApiException catch (e) {
         if (e.statusCode == 401 || e.code == 'SESSION_REVOKED') {
-          await SecureStorageService.clearAll();
+          await SecureStorageService.clearAuthSession();
           state = const AuthState(
             user: null,
             isAuthenticated: false,
@@ -136,6 +138,7 @@ class AuthController extends Notifier<AuthState> {
         isLoading: false,
       );
       _startSessionPolling();
+      unawaited(CloudSyncService().syncAll());
     } else {
       state = state.copyWith(
         user: null,
@@ -155,6 +158,7 @@ class AuthController extends Notifier<AuthState> {
         isLoading: false,
       );
       _startSessionPolling();
+      unawaited(CloudSyncService().syncAll());
       return const LoginResult(success: true);
     } on ApiException catch (e) {
       final hasActiveSession = e.code == 'ACTIVE_SESSION_EXISTS';

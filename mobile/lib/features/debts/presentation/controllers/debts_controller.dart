@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/services/cloud_sync_service.dart';
 import '../../../../core/storage/secure_storage_service.dart';
 
 final debtsProvider =
@@ -12,8 +14,14 @@ class DebtsNotifier extends Notifier<List<Map<String, dynamic>>> {
   }
 
   Future<void> loadDebts() async {
-    final list = await SecureStorageService.getDebts();
-    state = List<Map<String, dynamic>>.from(list);
+    // 1. Local instant load
+    final localList = await SecureStorageService.getDebts();
+    state = List<Map<String, dynamic>>.from(localList);
+
+    // 2. Cloud sync
+    await CloudSyncService().syncDebts();
+    final freshList = await SecureStorageService.getDebts();
+    state = List<Map<String, dynamic>>.from(freshList);
   }
 
   Future<void> addDebt(Map<String, dynamic> debt) async {
@@ -21,6 +29,7 @@ class DebtsNotifier extends Notifier<List<Map<String, dynamic>>> {
     list.insert(0, debt);
     await SecureStorageService.saveDebts(list);
     await loadDebts();
+    unawaited(CloudSyncService().createDebt(debt));
   }
 
   Future<void> updateDebt(Map<String, dynamic> updated) async {
@@ -30,6 +39,7 @@ class DebtsNotifier extends Notifier<List<Map<String, dynamic>>> {
       list[idx] = updated;
       await SecureStorageService.saveDebts(list);
       await loadDebts();
+      unawaited(CloudSyncService().syncDebts());
     }
   }
 
@@ -38,6 +48,7 @@ class DebtsNotifier extends Notifier<List<Map<String, dynamic>>> {
     list.removeWhere((d) => (d['id'] ?? '').toString() == id);
     await SecureStorageService.saveDebts(list);
     await loadDebts();
+    unawaited(CloudSyncService().deleteDebt(id));
   }
 
   Future<void> recordPayment(String id, double paidAmount) async {
@@ -56,6 +67,7 @@ class DebtsNotifier extends Notifier<List<Map<String, dynamic>>> {
       list[idx] = debt;
       await SecureStorageService.saveDebts(list);
       await loadDebts();
+      unawaited(CloudSyncService().syncDebts());
     }
   }
 }

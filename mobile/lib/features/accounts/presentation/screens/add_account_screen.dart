@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/services/cloud_sync_service.dart';
 import '../../../../core/services/reminder_notification_service.dart';
 import '../../../../core/storage/secure_storage_service.dart';
 import '../../../../core/theme/brutal_colors.dart';
@@ -170,8 +172,7 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
 
       final existing = await SecureStorageService.getAccounts();
       final newAccId = 'acc_${DateTime.now().millisecondsSinceEpoch}';
-
-      existing.add({
+      final newAccountData = {
         'id': newAccId,
         'title': finalTitle,
         'bankName': bankName.isNotEmpty ? bankName : null,
@@ -189,9 +190,11 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
         'isClosed': false,
         'includeInNetWorth': _includeInNetWorth,
         'subtext': subtext,
-      });
+      };
 
+      existing.add(newAccountData);
       await SecureStorageService.saveAccounts(existing);
+      unawaited(CloudSyncService().createAccount(newAccountData));
 
       // Schedule monthly recurring EMI / Bill reminder notification
       if (_selectedType == 'LOAN' && dueDay != null && dueDay > 0 && dueDay <= 31 && emi > 0) {

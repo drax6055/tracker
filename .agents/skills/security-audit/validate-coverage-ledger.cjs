@@ -24,7 +24,7 @@ const MAX_UNITS = LIMITS.units;
 const MAX_LIST_ITEMS = LIMITS.collectionItems;
 const MAX_TEXT_LENGTH = 4096;
 const REQUIRED_FIELDS = [
-  "coverage_id",
+  "coverage_id", 
   "canonical_refs",
   "surface",
   "boundary",

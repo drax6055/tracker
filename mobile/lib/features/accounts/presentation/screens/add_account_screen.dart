@@ -52,20 +52,73 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
       return;
     }
 
-    final existingAccounts = await SecureStorageService.getAccounts();
-    if (existingAccounts.any((a) => (a['title'] ?? '').toString().trim().toLowerCase() == name.toLowerCase())) {
-      if (mounted) {
-        BrutalToast.showError(context, 'AN ACCOUNT NAMED "$name" ALREADY EXISTS');
-      }
-      return;
-    }
-
     final balance = double.tryParse(_balanceController.text.trim()) ?? 0.0;
     final bankName = _bankNameController.text.trim();
     final digits = _digitsController.text.trim();
     final limit = double.tryParse(_limitController.text.trim()) ?? 0.0;
     final emi = double.tryParse(_emiAmountController.text.trim()) ?? 0.0;
     final dueDay = int.tryParse(_emiDueDayController.text.trim());
+
+    final existingAccounts = await SecureStorageService.getAccounts();
+
+    // Validate across ALL identifying fields (Name, Type, Bank, Digits)
+    // Multiple accounts in the same bank are allowed if their digits, types, or institutions differ.
+    final isExactDuplicate = existingAccounts.any((a) {
+      final aName = (a['title'] ?? '').toString().trim().toLowerCase();
+      final aType = (a['type'] ?? '').toString().trim().toUpperCase();
+      final aBank = (a['bankName'] ?? '').toString().trim().toLowerCase();
+      final aDigits = (a['digits'] ?? '').toString().trim();
+
+      final sameName = aName == name.toLowerCase() || aName.startsWith('${name.toLowerCase()} (••');
+      final sameType = aType == _selectedType.toUpperCase();
+      final sameBank = bankName.isEmpty || aBank.isEmpty || aBank == bankName.toLowerCase();
+      final sameDigits = digits.isNotEmpty && aDigits.isNotEmpty && aDigits == digits;
+
+      // If digits are provided, an account is identical only if the last 4 digits also match
+      if (digits.isNotEmpty && aDigits.isNotEmpty) {
+        return sameName && sameType && sameBank && sameDigits;
+      }
+
+      // If digits are empty, check if identical name, type, and bank already exist with no digits
+      return (a['title'] ?? '').toString().trim().toLowerCase() == name.toLowerCase() &&
+          sameType &&
+          sameBank &&
+          (digits.isEmpty && (aDigits.isEmpty || aDigits == 'ACC' || aDigits == 'WAL' || aDigits == 'NEW'));
+    });
+
+    if (isExactDuplicate) {
+      if (mounted) {
+        final digitsInfo = digits.isNotEmpty ? ' with ending digits $digits' : '';
+        BrutalToast.showError(context, 'THIS EXACT ACCOUNT$digitsInfo ALREADY EXISTS IN YOUR VAULT');
+      }
+      return;
+    }
+
+    // Disambiguate account title if an account with this exact label already exists
+    // (e.g., State Bank of India -> State Bank of India (••5678))
+    String finalTitle = name;
+    final titleAlreadyExists = existingAccounts.any((a) => (a['title'] ?? '').toString().trim().toLowerCase() == finalTitle.toLowerCase());
+    if (titleAlreadyExists) {
+      if (digits.isNotEmpty) {
+        finalTitle = '$name (••$digits)';
+      } else if (bankName.isNotEmpty && !name.toLowerCase().contains(bankName.toLowerCase())) {
+        finalTitle = '$name - $bankName';
+      } else {
+        int count = 2;
+        while (existingAccounts.any((a) => (a['title'] ?? '').toString().trim().toLowerCase() == '$name #$count'.toLowerCase())) {
+          count++;
+        }
+        finalTitle = '$name #$count';
+      }
+
+      if (existingAccounts.any((a) => (a['title'] ?? '').toString().trim().toLowerCase() == finalTitle.toLowerCase())) {
+        int count = 2;
+        while (existingAccounts.any((a) => (a['title'] ?? '').toString().trim().toLowerCase() == '$finalTitle #$count'.toLowerCase())) {
+          count++;
+        }
+        finalTitle = '$finalTitle #$count';
+      }
+    }
 
     setState(() => _isSaving = true);
 
@@ -120,7 +173,8 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
 
       existing.add({
         'id': newAccId,
-        'title': name,
+        'title': finalTitle,
+        'bankName': bankName.isNotEmpty ? bankName : null,
         'subtitle': subtitle,
         'balance': balance,
         'type': _selectedType,
@@ -144,7 +198,7 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
         final notifId = (newAccId.hashCode.abs() % 100000) + 1000;
         await ReminderNotificationService().scheduleEmiReminder(
           notificationId: notifId,
-          loanTitle: name,
+          loanTitle: finalTitle,
           emiAmount: emi,
           dueDay: dueDay,
           currency: currency,
@@ -153,7 +207,7 @@ class _AddAccountScreenState extends ConsumerState<AddAccountScreen> {
         final notifId = (newAccId.hashCode.abs() % 100000) + 2000;
         await ReminderNotificationService().scheduleCreditCardReminder(
           notificationId: notifId,
-          cardTitle: name,
+          cardTitle: finalTitle,
           outstandingAmount: balance > 0 ? balance : (emi > 0 ? emi : 0.0),
           dueDay: dueDay,
           currency: currency,

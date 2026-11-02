@@ -320,16 +320,20 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                           BrutalToast.showError(ctx, 'Account name cannot be empty');
                           return;
                         }
-                        if (_accounts.contains(val)) {
-                          BrutalToast.showError(ctx, 'Account already exists');
-                          return;
+                        String finalName = val;
+                        if (_accounts.contains(finalName)) {
+                          int c = 2;
+                          while (_accounts.contains('$val #$c')) {
+                            c++;
+                          }
+                          finalName = '$val #$c';
                         }
 
                         final bal = double.tryParse(balanceController.text.trim()) ?? 0.0;
                         final currentVault = await SecureStorageService.getAccounts();
                         currentVault.add({
                           'id': 'acc_${DateTime.now().millisecondsSinceEpoch}',
-                          'title': val,
+                          'title': finalName,
                           'subtitle': '$accountType Account',
                           'balance': bal,
                           'type': accountType,
@@ -339,14 +343,14 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
 
                         if (!mounted) return;
                         setState(() {
-                          _accounts.add(val);
-                          _selectedAccount = val;
+                          _accounts.add(finalName);
+                          _selectedAccount = finalName;
                         });
 
                         if (ctx.mounted) {
                           Navigator.pop(ctx);
                         }
-                        BrutalToast.showSuccess(context, 'ACCOUNT "$val" CREATED & SELECTED');
+                        BrutalToast.showSuccess(context, 'ACCOUNT "$finalName" CREATED & SELECTED');
                       },
                     ),
                     const SizedBox(height: 20),

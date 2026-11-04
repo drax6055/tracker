@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import '../constants/api_endpoints.dart';
 import '../network/api_client.dart';
@@ -32,29 +31,27 @@ class CloudSyncService {
   Future<void> syncAccounts() async {
     final token = await SecureStorageService.getAccessToken();
     if (token == null || token.isEmpty) return;
+    final isDemo = await SecureStorageService.isCurrentUserDemo();
 
     try {
-      final local = await SecureStorageService.getAccounts();
-      if (local.isNotEmpty) {
-        final postRes = await _client.dio.post(
-          '${ApiEndpoints.accounts}/sync',
-          data: {'accounts': local},
-        );
-        final list = postRes.data['data'] as List<dynamic>?;
-        if (list != null && list.isNotEmpty) {
-          final cloudAccounts = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-          await SecureStorageService.saveAccounts(cloudAccounts);
-          return;
-        }
-      }
-
+      // 1. Fetch from cloud MongoDB (master source of truth)
       final response = await _client.dio.get(ApiEndpoints.accounts);
       final list = response.data['data'] as List<dynamic>?;
-      if (list != null && list.isNotEmpty) {
-        final cloudAccounts = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+
+      if (list != null) {
+        var cloudAccounts = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        if (!isDemo) {
+          // Strictly strip any mock demo accounts for standard accounts
+          cloudAccounts = cloudAccounts
+              .where((a) => !SecureStorageService.isDemoAccount(a))
+              .toList();
+        }
         await SecureStorageService.saveAccounts(cloudAccounts);
+        return;
       }
-    } catch (_) {}
+    } catch (_) {
+      // Offline or network error: keep existing local accounts
+    }
   }
 
   /// Create Account in Cloud
@@ -91,29 +88,26 @@ class CloudSyncService {
   Future<void> syncTransactions() async {
     final token = await SecureStorageService.getAccessToken();
     if (token == null || token.isEmpty) return;
+    final isDemo = await SecureStorageService.isCurrentUserDemo();
 
     try {
-      final local = await SecureStorageService.getTransactions();
-      if (local.isNotEmpty) {
-        final postRes = await _client.dio.post(
-          '${ApiEndpoints.transactions}/sync',
-          data: {'transactions': local},
-        );
-        final list = postRes.data['data'] as List<dynamic>?;
-        if (list != null && list.isNotEmpty) {
-          final cloudTxs = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-          await SecureStorageService.saveTransactions(cloudTxs);
-          return;
-        }
-      }
-
+      // 1. Fetch from cloud MongoDB (master source of truth)
       final response = await _client.dio.get(ApiEndpoints.transactions);
       final list = response.data['data'] as List<dynamic>?;
-      if (list != null && list.isNotEmpty) {
-        final cloudTxs = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+
+      if (list != null) {
+        var cloudTxs = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        if (!isDemo) {
+          cloudTxs = cloudTxs
+              .where((t) => !SecureStorageService.isDemoTransaction(t))
+              .toList();
+        }
         await SecureStorageService.saveTransactions(cloudTxs);
+        return;
       }
-    } catch (_) {}
+    } catch (_) {
+      // Offline or network error
+    }
   }
 
   /// Create Transaction in Cloud
@@ -142,20 +136,6 @@ class CloudSyncService {
     if (token == null || token.isEmpty) return;
 
     try {
-      final local = await SecureStorageService.getCategories();
-      if (local.isNotEmpty) {
-        final postRes = await _client.dio.post(
-          '${ApiEndpoints.categories}/sync',
-          data: {'categories': local},
-        );
-        final list = postRes.data['data'] as List<dynamic>?;
-        if (list != null && list.isNotEmpty) {
-          final cloudCats = list.map((e) => (e is Map ? e['name'] : e).toString()).toList();
-          await SecureStorageService.saveCategories(cloudCats);
-          return;
-        }
-      }
-
       final response = await _client.dio.get(ApiEndpoints.categories);
       final list = response.data['data'] as List<dynamic>?;
       if (list != null && list.isNotEmpty) {
@@ -169,29 +149,26 @@ class CloudSyncService {
   Future<void> syncDebts() async {
     final token = await SecureStorageService.getAccessToken();
     if (token == null || token.isEmpty) return;
+    final isDemo = await SecureStorageService.isCurrentUserDemo();
 
     try {
-      final local = await SecureStorageService.getDebts();
-      if (local.isNotEmpty) {
-        final postRes = await _client.dio.post(
-          '${ApiEndpoints.debts}/sync',
-          data: {'debts': local},
-        );
-        final list = postRes.data['data'] as List<dynamic>?;
-        if (list != null && list.isNotEmpty) {
-          final cloudDebts = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-          await SecureStorageService.saveDebts(cloudDebts);
-          return;
-        }
-      }
-
+      // 1. Fetch from cloud MongoDB (master source of truth)
       final response = await _client.dio.get(ApiEndpoints.debts);
       final list = response.data['data'] as List<dynamic>?;
-      if (list != null && list.isNotEmpty) {
-        final cloudDebts = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+
+      if (list != null) {
+        var cloudDebts = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        if (!isDemo) {
+          cloudDebts = cloudDebts
+              .where((d) => !SecureStorageService.isDemoDebt(d))
+              .toList();
+        }
         await SecureStorageService.saveDebts(cloudDebts);
+        return;
       }
-    } catch (_) {}
+    } catch (_) {
+      // Offline or network error
+    }
   }
 
   /// Create Debt in Cloud

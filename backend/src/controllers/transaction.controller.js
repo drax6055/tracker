@@ -6,11 +6,16 @@ const asyncHandler = require('../utils/asyncHandler');
 
 const DEMO_TX_TITLES = [
   'Salary Credit',
+  'Whole Foods Groceries',
   'Grocery & Supermarket',
-  'Coffee & Bistro',
+  'ATM Cash Withdrawal',
   'Cash Withdrawal',
-  'Electricity Bill',
+  'Uber Airport Taxi',
+  'Freelance Web Design',
   'Freelance UI Design',
+  'Auto Loan Monthly EMI',
+  'Coffee & Bistro',
+  'Electricity Bill',
   'Netflix & Spotify',
   'Health Insurance EMI',
 ];
@@ -33,7 +38,12 @@ const getTransactions = asyncHandler(async (req, res) => {
   const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
   const skip = (page - 1) * limit;
 
-  const transactions = await Transaction.find({ userId: req.user._id })
+  const query = { userId: req.user._id };
+  if (!isDemoUser(req.user.email)) {
+    query.title = { $nin: DEMO_TX_TITLES };
+  }
+
+  const transactions = await Transaction.find(query)
     .sort({ timestamp: -1 })
     .skip(skip)
     .limit(limit);

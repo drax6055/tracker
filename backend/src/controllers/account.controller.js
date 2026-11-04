@@ -24,7 +24,11 @@ const formatAccount = (doc) => {
 
 // GET /api/v1/accounts
 const getAccounts = asyncHandler(async (req, res) => {
-  const accounts = await Account.find({ userId: req.user._id }).sort({ createdAt: 1 });
+  const query = { userId: req.user._id };
+  if (!isDemoUser(req.user.email)) {
+    query.title = { $nin: DEMO_ACCOUNT_TITLES };
+  }
+  const accounts = await Account.find(query).sort({ createdAt: 1 });
   return ApiResponse.success(res, accounts.map(formatAccount), 'Accounts retrieved successfully');
 });
 

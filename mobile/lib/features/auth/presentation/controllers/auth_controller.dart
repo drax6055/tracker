@@ -4,6 +4,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/storage/secure_storage_service.dart';
 import '../../../../core/services/cloud_sync_service.dart';
+import '../../../transactions/presentation/controllers/transactions_controller.dart';
 import '../../data/auth_repository.dart';
 import '../../data/models/user_model.dart';
 
@@ -108,13 +109,13 @@ class AuthController extends Notifier<AuthState> {
         final freshUser = await _repo.getMe();
         if (freshUser != null) {
           user = freshUser;
+          await CloudSyncService().syncAll();
           state = state.copyWith(
             user: user,
             isAuthenticated: true,
             isLoading: false,
           );
           _startSessionPolling();
-          unawaited(CloudSyncService().syncAll());
           return;
         }
       } on ApiException catch (e) {
@@ -138,7 +139,7 @@ class AuthController extends Notifier<AuthState> {
         isLoading: false,
       );
       _startSessionPolling();
-      unawaited(CloudSyncService().syncAll());
+      await CloudSyncService().syncAll();
     } else {
       state = state.copyWith(
         user: null,
@@ -152,13 +153,14 @@ class AuthController extends Notifier<AuthState> {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final response = await _repo.login(email: email, password: password, force: force);
+      await CloudSyncService().syncAll();
+      ref.invalidate(transactionsProvider);
       state = state.copyWith(
         user: response.user,
         isAuthenticated: true,
         isLoading: false,
       );
       _startSessionPolling();
-      unawaited(CloudSyncService().syncAll());
       return const LoginResult(success: true);
     } on ApiException catch (e) {
       final hasActiveSession = e.code == 'ACTIVE_SESSION_EXISTS';
@@ -197,6 +199,8 @@ class AuthController extends Notifier<AuthState> {
         password: password,
         confirmPassword: confirmPassword,
       );
+      await CloudSyncService().syncAll();
+      ref.invalidate(transactionsProvider);
       state = state.copyWith(
         user: response.user,
         isAuthenticated: true,
@@ -261,12 +265,14 @@ class AuthController extends Notifier<AuthState> {
 
   Future<void> requirePasswordLogin() async {
     _stopSessionPolling();
+    ref.invalidate(transactionsProvider);
     await SecureStorageService.clearAuthTokensOnly();
     state = const AuthState(isAuthenticated: false, isLoading: false);
   }
 
   Future<void> logout() async {
     _stopSessionPolling();
+    ref.invalidate(transactionsProvider);
     await _repo.logout();
     state = const AuthState(isAuthenticated: false);
   }

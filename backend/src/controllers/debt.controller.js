@@ -18,7 +18,11 @@ const formatDebt = (doc) => {
 
 // GET /api/v1/debts
 const getDebts = asyncHandler(async (req, res) => {
-  const debts = await Debt.find({ userId: req.user._id }).sort({ createdAt: -1 });
+  const query = { userId: req.user._id };
+  if (!isDemoUser(req.user.email)) {
+    query.personName = { $nin: DEMO_DEBT_PERSONS };
+  }
+  const debts = await Debt.find(query).sort({ createdAt: -1 });
   return ApiResponse.success(res, debts.map(formatDebt), 'Debts retrieved successfully');
 });
 

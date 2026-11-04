@@ -1,3 +1,4 @@
+
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -107,6 +108,84 @@ class SecureStorageService {
     if (user == null) return false;
     final email = (user['email'] ?? '').toString().toLowerCase().trim();
     return email == 'bruce@wayne.corp' || email == 'bruce@wayn.corp';
+  }
+
+  static const List<String> demoAccountTitles = [
+    'HDFC Salaried Account',
+    'Physical Cash Vault',
+    'Infinia Metal Card',
+    'Vehicle Loan #49281',
+  ];
+
+  static const List<String> demoTxTitles = [
+    'Salary Credit',
+    'Whole Foods Groceries',
+    'Grocery & Supermarket',
+    'ATM Cash Withdrawal',
+    'Cash Withdrawal',
+    'Uber Airport Taxi',
+    'Freelance Web Design',
+    'Freelance UI Design',
+    'Auto Loan Monthly EMI',
+    'Coffee & Bistro',
+    'Electricity Bill',
+    'Netflix & Spotify',
+    'Health Insurance EMI',
+  ];
+
+  static const List<String> demoDebtPersons = [
+    'Peter Parker',
+    'Tony Stark',
+    'Clark Kent',
+  ];
+
+  static bool isDemoAccount(Map<String, dynamic> a) {
+    final id = (a['id'] ?? a['_id'] ?? '').toString();
+    final title = (a['title'] ?? '').toString();
+    if (id.startsWith('acc_') || id.startsWith('demo_')) return true;
+    return demoAccountTitles.contains(title);
+  }
+
+  static bool isDemoTransaction(Map<String, dynamic> t) {
+    final id = (t['id'] ?? t['_id'] ?? '').toString();
+    final title = (t['title'] ?? '').toString();
+    if (id.startsWith('tx_') || id.startsWith('demo_')) return true;
+    return demoTxTitles.contains(title);
+  }
+
+  static bool isDemoDebt(Map<String, dynamic> d) {
+    final id = (d['id'] ?? d['_id'] ?? '').toString();
+    final name = (d['personName'] ?? d['person'] ?? '').toString();
+    if (id.startsWith('debt_') || id.startsWith('demo_')) return true;
+    return demoDebtPersons.contains(name);
+  }
+
+  static String? _memUserEmail;
+
+  static Future<String> _getCurrentUserEmail() async {
+    final user = await getUser();
+    return (user?['email'] ?? '').toString().toLowerCase().trim();
+  }
+
+  static void _checkMemCacheInvalidation(String currentEmail) {
+    if (_memUserEmail != currentEmail) {
+      _memAccounts = null;
+      _memTransactions = null;
+      _memCategories = null;
+      _memDebts = null;
+      _memUserEmail = currentEmail;
+    }
+  }
+
+  static Future<String> _userKeyPrefix() async {
+    final user = await getUser();
+    if (user != null) {
+      final email = (user['email'] ?? '').toString().toLowerCase().trim();
+      if (email.isNotEmpty) {
+        return 'u_${email.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}_';
+      }
+    }
+    return 'u_guest_';
   }
 
   // Demo Datasets (Strictly used for Bruce Wayne demo account only)
@@ -316,27 +395,36 @@ class SecureStorageService {
 
   static Future<void> saveAccounts(List<Map<String, dynamic>> accounts) async {
     _memAccounts = List<Map<String, dynamic>>.from(accounts);
+    final prefix = await _userKeyPrefix();
     try {
-      await _storage.write(key: _accountsKey, value: jsonEncode(accounts));
+      await _storage.write(key: '$prefix$_accountsKey', value: jsonEncode(accounts));
     } catch (_) {}
   }
 
   static Future<List<Map<String, dynamic>>> getAccounts() async {
+    final currentEmail = await _getCurrentUserEmail();
+    _checkMemCacheInvalidation(currentEmail);
+
     if (_memAccounts != null) {
       return List<Map<String, dynamic>>.from(_memAccounts!);
     }
+    final prefix = await _userKeyPrefix();
+    final isDemo = await isCurrentUserDemo();
     try {
-      final str = await _storage.read(key: _accountsKey);
+      final str = await _storage.read(key: '$prefix$_accountsKey');
       if (str != null && str.isNotEmpty) {
         final list = jsonDecode(str) as List<dynamic>;
-        final res = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        var res = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        if (!isDemo) {
+          res = res.where((a) => !isDemoAccount(a)).toList();
+        }
         _memAccounts = List<Map<String, dynamic>>.from(res);
         return res;
       }
     } catch (_) {}
 
-    // If empty and demo user, return demo accounts; else completely empty!
-    if (await isCurrentUserDemo()) {
+    // Only return demo accounts if explicitly Bruce Wayne demo account!
+    if (isDemo) {
       _memAccounts = List<Map<String, dynamic>>.from(demoAccounts);
       return List<Map<String, dynamic>>.from(demoAccounts);
     }
@@ -350,20 +438,29 @@ class SecureStorageService {
 
   static Future<void> saveTransactions(List<Map<String, dynamic>> transactions) async {
     _memTransactions = List<Map<String, dynamic>>.from(transactions);
+    final prefix = await _userKeyPrefix();
     try {
-      await _storage.write(key: _transactionsKey, value: jsonEncode(transactions));
+      await _storage.write(key: '$prefix$_transactionsKey', value: jsonEncode(transactions));
     } catch (_) {}
   }
 
   static Future<List<Map<String, dynamic>>> getTransactions() async {
+    final currentEmail = await _getCurrentUserEmail();
+    _checkMemCacheInvalidation(currentEmail);
+
     if (_memTransactions != null) {
       return List<Map<String, dynamic>>.from(_memTransactions!);
     }
+    final prefix = await _userKeyPrefix();
+    final isDemo = await isCurrentUserDemo();
     try {
-      final str = await _storage.read(key: _transactionsKey);
+      final str = await _storage.read(key: '$prefix$_transactionsKey');
       if (str != null && str.isNotEmpty) {
         final list = jsonDecode(str) as List<dynamic>;
-        final res = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        var res = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        if (!isDemo) {
+          res = res.where((t) => !isDemoTransaction(t)).toList();
+        }
         res.sort((a, b) {
           final tA = DateTime.tryParse(a['timestamp']?.toString() ?? '') ?? DateTime(1970);
           final tB = DateTime.tryParse(b['timestamp']?.toString() ?? '') ?? DateTime(1970);
@@ -374,8 +471,7 @@ class SecureStorageService {
       }
     } catch (_) {}
 
-    // If empty and demo user, return demo transactions; else completely empty!
-    if (await isCurrentUserDemo()) {
+    if (isDemo) {
       _memTransactions = List<Map<String, dynamic>>.from(demoTransactions);
       return List<Map<String, dynamic>>.from(demoTransactions);
     }
@@ -455,27 +551,35 @@ class SecureStorageService {
 
   static Future<void> saveDebts(List<Map<String, dynamic>> debts) async {
     _memDebts = List<Map<String, dynamic>>.from(debts);
+    final prefix = await _userKeyPrefix();
     try {
-      await _storage.write(key: _debtsKey, value: jsonEncode(debts));
+      await _storage.write(key: '$prefix$_debtsKey', value: jsonEncode(debts));
     } catch (_) {}
   }
 
   static Future<List<Map<String, dynamic>>> getDebts() async {
+    final currentEmail = await _getCurrentUserEmail();
+    _checkMemCacheInvalidation(currentEmail);
+
     if (_memDebts != null) {
       return List<Map<String, dynamic>>.from(_memDebts!);
     }
+    final prefix = await _userKeyPrefix();
+    final isDemo = await isCurrentUserDemo();
     try {
-      final str = await _storage.read(key: _debtsKey);
+      final str = await _storage.read(key: '$prefix$_debtsKey');
       if (str != null && str.isNotEmpty) {
         final list = jsonDecode(str) as List<dynamic>;
-        final res = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        var res = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        if (!isDemo) {
+          res = res.where((d) => !isDemoDebt(d)).toList();
+        }
         _memDebts = List<Map<String, dynamic>>.from(res);
         return res;
       }
     } catch (_) {}
 
-    // If empty and demo user, return demo debts; else completely empty!
-    if (await isCurrentUserDemo()) {
+    if (isDemo) {
       _memDebts = List<Map<String, dynamic>>.from(demoDebts);
       return List<Map<String, dynamic>>.from(demoDebts);
     }
@@ -532,13 +636,23 @@ class SecureStorageService {
     _memTransactions = null;
     _memCategories = null;
     _memDebts = null;
+    _memUserEmail = null;
     await _storage.delete(key: _accessTokenKey);
     await _storage.delete(key: _refreshTokenKey);
     await _storage.delete(key: _userKey);
+    // Purge legacy un-scoped keys so mock data never leaks into new sessions
+    await _storage.delete(key: _accountsKey);
+    await _storage.delete(key: _transactionsKey);
+    await _storage.delete(key: _debtsKey);
   }
 
   // Clear Auth Tokens Only (keeps settings, biometric state, and device ID)
   static Future<void> clearAuthTokensOnly() async {
+    _memAccounts = null;
+    _memTransactions = null;
+    _memCategories = null;
+    _memDebts = null;
+    _memUserEmail = null;
     await _storage.delete(key: _accessTokenKey);
     await _storage.delete(key: _refreshTokenKey);
   }

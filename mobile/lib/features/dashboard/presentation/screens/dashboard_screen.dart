@@ -11,6 +11,7 @@ import '../../../../core/widgets/brutal_chip.dart';
 import '../../../../core/widgets/brutal_toast.dart';
 import '../../../../core/storage/secure_storage_service.dart';
 import '../../../../core/services/reminder_notification_service.dart';
+import '../../../../core/services/cloud_sync_service.dart';
 import 'package:ledger_app/features/auth/presentation/controllers/auth_controller.dart';
 import 'package:ledger_app/features/transactions/presentation/controllers/transactions_controller.dart';
 import 'package:ledger_app/features/debts/presentation/controllers/debts_controller.dart';
@@ -45,12 +46,31 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Future<void> _loadDashboardData() async {
-    final accs = await SecureStorageService.getAccounts();
-    final txs = await SecureStorageService.getTransactions();
-    final debts = await SecureStorageService.getDebts();
-    final isDemo = await SecureStorageService.isCurrentUserDemo();
+    var accs = await SecureStorageService.getAccounts();
+    var txs = await SecureStorageService.getTransactions();
+    var debts = await SecureStorageService.getDebts();
+    var isDemo = await SecureStorageService.isCurrentUserDemo();
 
+    if (mounted) {
+      _applyMetrics(accs, txs, debts, isDemo);
+    }
+
+    // Refresh from cloud in background and update dashboard
+    await CloudSyncService().syncAll();
     if (!mounted) return;
+    accs = await SecureStorageService.getAccounts();
+    txs = await SecureStorageService.getTransactions();
+    debts = await SecureStorageService.getDebts();
+    isDemo = await SecureStorageService.isCurrentUserDemo();
+    _applyMetrics(accs, txs, debts, isDemo);
+  }
+
+  void _applyMetrics(
+    List<Map<String, dynamic>> accs,
+    List<Map<String, dynamic>> txs,
+    List<Map<String, dynamic>> debts,
+    bool isDemo,
+  ) {
     setState(() {
       _vaultAccounts = accs;
       _recentTransactions = txs;

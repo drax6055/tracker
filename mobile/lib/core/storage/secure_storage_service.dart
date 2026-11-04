@@ -173,6 +173,7 @@ class SecureStorageService {
       _memTransactions = null;
       _memCategories = null;
       _memDebts = null;
+      _memNotes = null;
       _memUserEmail = currentEmail;
     }
   }
@@ -587,6 +588,107 @@ class SecureStorageService {
     return [];
   }
 
+  // Windows-style Sticky Notes (Dynamic)
+  static const String _notesKey = 'ledger_sticky_notes';
+  static List<Map<String, dynamic>>? _memNotes;
+
+  static Future<void> saveNotes(List<Map<String, dynamic>> notes) async {
+    _memNotes = List<Map<String, dynamic>>.from(notes);
+    final prefix = await _userKeyPrefix();
+    try {
+      await _storage.write(key: '$prefix$_notesKey', value: jsonEncode(notes));
+    } catch (_) {}
+  }
+
+  static Future<List<Map<String, dynamic>>> getNotes() async {
+    final currentEmail = await _getCurrentUserEmail();
+    _checkMemCacheInvalidation(currentEmail);
+
+    if (_memNotes != null) {
+      return List<Map<String, dynamic>>.from(_memNotes!);
+    }
+    final prefix = await _userKeyPrefix();
+    try {
+      final str = await _storage.read(key: '$prefix$_notesKey');
+      if (str != null && str.isNotEmpty) {
+        final list = jsonDecode(str) as List<dynamic>;
+        final res = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        res.sort((a, b) {
+          final pinA = a['isPinned'] == true ? 1 : 0;
+          final pinB = b['isPinned'] == true ? 1 : 0;
+          if (pinA != pinB) return pinB.compareTo(pinA);
+          final tA = DateTime.tryParse(a['updatedAt'] ?? a['createdAt'] ?? '') ?? DateTime(1970);
+          final tB = DateTime.tryParse(b['updatedAt'] ?? b['createdAt'] ?? '') ?? DateTime(1970);
+          return tB.compareTo(tA);
+        });
+        _memNotes = List<Map<String, dynamic>>.from(res);
+        return res;
+      }
+    } catch (_) {}
+
+    _memNotes = [];
+    return [];
+  }
+
+  static Future<void> addNote(Map<String, dynamic> note) async {
+    final current = await getNotes();
+    current.insert(0, note);
+    current.sort((a, b) {
+      final pinA = a['isPinned'] == true ? 1 : 0;
+      final pinB = b['isPinned'] == true ? 1 : 0;
+      if (pinA != pinB) return pinB.compareTo(pinA);
+      final tA = DateTime.tryParse(a['updatedAt'] ?? a['createdAt'] ?? '') ?? DateTime(1970);
+      final tB = DateTime.tryParse(b['updatedAt'] ?? b['createdAt'] ?? '') ?? DateTime(1970);
+      return tB.compareTo(tA);
+    });
+    await saveNotes(current);
+  }
+
+  static Future<void> updateNote(Map<String, dynamic> note) async {
+    final current = await getNotes();
+    final noteId = (note['id'] ?? note['_id'] ?? '').toString();
+    final idx = current.indexWhere((n) => (n['id'] ?? n['_id'] ?? '').toString() == noteId);
+    if (idx != -1) {
+      current[idx] = note;
+    } else {
+      current.insert(0, note);
+    }
+    current.sort((a, b) {
+      final pinA = a['isPinned'] == true ? 1 : 0;
+      final pinB = b['isPinned'] == true ? 1 : 0;
+      if (pinA != pinB) return pinB.compareTo(pinA);
+      final tA = DateTime.tryParse(a['updatedAt'] ?? a['createdAt'] ?? '') ?? DateTime(1970);
+      final tB = DateTime.tryParse(b['updatedAt'] ?? b['createdAt'] ?? '') ?? DateTime(1970);
+      return tB.compareTo(tA);
+    });
+    await saveNotes(current);
+  }
+
+  static Future<void> deleteNote(String id) async {
+    final current = await getNotes();
+    current.removeWhere((n) => (n['id'] ?? n['_id'] ?? '').toString() == id);
+    await saveNotes(current);
+  }
+
+  static Future<void> togglePinNote(String id) async {
+    final current = await getNotes();
+    final idx = current.indexWhere((n) => (n['id'] ?? n['_id'] ?? '').toString() == id);
+    if (idx != -1) {
+      final wasPinned = current[idx]['isPinned'] == true;
+      current[idx]['isPinned'] = !wasPinned;
+      current[idx]['updatedAt'] = DateTime.now().toIso8601String();
+      current.sort((a, b) {
+        final pinA = a['isPinned'] == true ? 1 : 0;
+        final pinB = b['isPinned'] == true ? 1 : 0;
+        if (pinA != pinB) return pinB.compareTo(pinA);
+        final tA = DateTime.tryParse(a['updatedAt'] ?? a['createdAt'] ?? '') ?? DateTime(1970);
+        final tB = DateTime.tryParse(b['updatedAt'] ?? b['createdAt'] ?? '') ?? DateTime(1970);
+        return tB.compareTo(tA);
+      });
+      await saveNotes(current);
+    }
+  }
+
   static const String _deviceIdKey = 'ledger_device_id';
   static String? _memDeviceId;
 
@@ -636,6 +738,7 @@ class SecureStorageService {
     _memTransactions = null;
     _memCategories = null;
     _memDebts = null;
+    _memNotes = null;
     _memUserEmail = null;
     await _storage.delete(key: _accessTokenKey);
     await _storage.delete(key: _refreshTokenKey);
@@ -644,6 +747,7 @@ class SecureStorageService {
     await _storage.delete(key: _accountsKey);
     await _storage.delete(key: _transactionsKey);
     await _storage.delete(key: _debtsKey);
+    await _storage.delete(key: _notesKey);
   }
 
   // Clear Auth Tokens Only (keeps settings, biometric state, and device ID)
@@ -652,6 +756,7 @@ class SecureStorageService {
     _memTransactions = null;
     _memCategories = null;
     _memDebts = null;
+    _memNotes = null;
     _memUserEmail = null;
     await _storage.delete(key: _accessTokenKey);
     await _storage.delete(key: _refreshTokenKey);
@@ -668,6 +773,8 @@ class SecureStorageService {
     _memAccounts = null;
     _memCategories = null;
     _memDebts = null;
+    _memNotes = null;
+    _memUserEmail = null;
     final devId = await _storage.read(key: _deviceIdKey);
     final bioEnabled = await _storage.read(key: _biometricEnabledKey);
     final bioPrompt = await _storage.read(key: _biometricPromptShownKey);

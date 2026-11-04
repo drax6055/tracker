@@ -21,6 +21,7 @@ class CloudSyncService {
         syncTransactions(),
         syncCategories(),
         syncDebts(),
+        syncNotes(),
       ]);
     } catch (_) {
       // Offline fallback: local cache handles operation smoothly
@@ -188,6 +189,55 @@ class CloudSyncService {
   Future<void> deleteDebt(String id) async {
     try {
       await _client.dio.delete('${ApiEndpoints.debts}/$id');
+    } catch (_) {}
+  }
+
+  /// Sync Sticky Notes between Cloud and Local
+  Future<void> syncNotes() async {
+    final token = await SecureStorageService.getAccessToken();
+    if (token == null || token.isEmpty) return;
+
+    try {
+      final response = await _client.dio.get(ApiEndpoints.notes);
+      final list = response.data['data'] as List<dynamic>?;
+
+      if (list != null) {
+        final cloudNotes = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        await SecureStorageService.saveNotes(cloudNotes);
+        return;
+      }
+    } catch (_) {
+      // Offline fallback
+    }
+  }
+
+  /// Create Note in Cloud
+  Future<Map<String, dynamic>?> createNote(Map<String, dynamic> noteData) async {
+    try {
+      final response = await _client.dio.post(
+        ApiEndpoints.notes,
+        data: noteData,
+      );
+      return response.data['data'] as Map<String, dynamic>?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Update Note in Cloud
+  Future<void> updateNote(String id, Map<String, dynamic> noteData) async {
+    try {
+      await _client.dio.put(
+        '${ApiEndpoints.notes}/$id',
+        data: noteData,
+      );
+    } catch (_) {}
+  }
+
+  /// Delete Note in Cloud
+  Future<void> deleteNote(String id) async {
+    try {
+      await _client.dio.delete('${ApiEndpoints.notes}/$id');
     } catch (_) {}
   }
 }

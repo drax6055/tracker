@@ -35,6 +35,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   bool _isMasked = false;
   List<Map<String, dynamic>> _vaultAccounts = [];
   List<Map<String, dynamic>> _recentTransactions = [];
+  List<Map<String, dynamic>> _stickyNotes = [];
 
   @override
   void initState() {
@@ -49,10 +50,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     var accs = await SecureStorageService.getAccounts();
     var txs = await SecureStorageService.getTransactions();
     var debts = await SecureStorageService.getDebts();
+    var notes = await SecureStorageService.getNotes();
     var isDemo = await SecureStorageService.isCurrentUserDemo();
 
     if (mounted) {
-      _applyMetrics(accs, txs, debts, isDemo);
+      _applyMetrics(accs, txs, debts, isDemo, notes);
     }
 
     // Refresh from cloud in background and update dashboard
@@ -61,18 +63,22 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     accs = await SecureStorageService.getAccounts();
     txs = await SecureStorageService.getTransactions();
     debts = await SecureStorageService.getDebts();
+    notes = await SecureStorageService.getNotes();
     isDemo = await SecureStorageService.isCurrentUserDemo();
-    _applyMetrics(accs, txs, debts, isDemo);
+    _applyMetrics(accs, txs, debts, isDemo, notes);
   }
 
   void _applyMetrics(
     List<Map<String, dynamic>> accs,
     List<Map<String, dynamic>> txs,
     List<Map<String, dynamic>> debts,
-    bool isDemo,
-  ) {
+    bool isDemo, [
+    List<Map<String, dynamic>>? notes,
+  ]) {
     setState(() {
       _vaultAccounts = accs;
+      _recentTransactions = txs;
+      if (notes != null) _stickyNotes = notes;
       _recentTransactions = txs;
 
       if (isDemo && accs.isEmpty && txs.isEmpty) {
@@ -150,6 +156,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       appBar: BrutalAppBar(
         title: 'LEDGER // ${user?.name ?? "OPERATOR"}',
         actions: [
+          IconButton(
+            icon: const Icon(Icons.sticky_note_2_outlined, color: BrutalColors.primaryYellow),
+            tooltip: 'Sticky Notes Pinboard',
+            onPressed: () async {
+              await context.push('/notes');
+              _loadDashboardData();
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined, color: BrutalColors.textPrimary),
             tooltip: 'Vault Preferences & Settings',
@@ -454,6 +468,76 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ),
                 const SizedBox(height: 24),
 
+                // 4.5 Sticky Notes Pinboard (Windows-style)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.sticky_note_2, size: 20, color: BrutalColors.primaryYellow),
+                        const SizedBox(width: 8),
+                        Text('STICKY PINBOARD', style: BrutalTypography.headingMedium),
+                      ],
+                    ),
+                    GestureDetector(
+                      onTap: () async {
+                        await context.push('/notes');
+                        _loadDashboardData();
+                      },
+                      child: Text(
+                        'VIEW ALL (${_stickyNotes.length}) →',
+                        style: BrutalTypography.sticker.copyWith(color: BrutalColors.primaryYellow),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (_stickyNotes.isEmpty)
+                  GestureDetector(
+                    onTap: () async {
+                      await context.push('/notes/editor');
+                      _loadDashboardData();
+                    },
+                    child: Container(
+                      height: 64,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: BrutalColors.surface,
+                        border: Border.all(color: BrutalColors.border, width: 2.0),
+                        boxShadow: const [
+                          BoxShadow(color: BrutalColors.border, offset: Offset(3, 3)),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.add, color: BrutalColors.primaryYellow, size: 22),
+                          const SizedBox(width: 8),
+                          Text(
+                            '+ PIN A WINDOWS STICKY NOTE',
+                            style: BrutalTypography.sticker.copyWith(
+                              color: BrutalColors.textPrimary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  SizedBox(
+                    height: 120,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _stickyNotes.length,
+                      separatorBuilder: (ctx, idx) => const SizedBox(width: 12),
+                      itemBuilder: (ctx, idx) {
+                        return _buildDashboardStickyCard(_stickyNotes[idx]);
+                      },
+                    ),
+                  ),
+                const SizedBox(height: 24),
+
                 // 5. Recent Transactions
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -722,11 +806,120 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     _loadDashboardData();
                   },
                 ),
+                const SizedBox(height: 12),
+                BrutalButton(
+                  text: '+ WINDOWS STICKY NOTE',
+                  backgroundColor: const Color(0xFFFFF9A6),
+                  textColor: BrutalColors.textDark,
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    await context.push('/notes/editor');
+                    _loadDashboardData();
+                  },
+                ),
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildDashboardStickyCard(Map<String, dynamic> note) {
+    const stickyColors = {
+      'yellow': Color(0xFFFFF9A6),
+      'lime': Color(0xFFD4F8D3),
+      'cyan': Color(0xFFD0F4F7),
+      'pink': Color(0xFFFFD4E5),
+      'orange': Color(0xFFFFE0C8),
+      'purple': Color(0xFFE8DBF8),
+    };
+
+    const stickyHeaderColors = {
+      'yellow': Color(0xFFF9E870),
+      'lime': Color(0xFFB5EDB4),
+      'cyan': Color(0xFFB1E7EB),
+      'pink': Color(0xFFF7B9D2),
+      'orange': Color(0xFFFACBB1),
+      'purple': Color(0xFFD7C2F0),
+    };
+
+    final title = (note['title'] ?? 'Untitled Sticky').toString();
+    final content = (note['content'] ?? '').toString();
+    final colorKey = (note['color'] ?? 'yellow').toString().toLowerCase();
+    final isPinned = note['isPinned'] == true;
+    final bg = stickyColors[colorKey] ?? stickyColors['yellow']!;
+    final hBg = stickyHeaderColors[colorKey] ?? stickyHeaderColors['yellow']!;
+
+    return GestureDetector(
+      onTap: () async {
+        await context.push('/notes/editor', extra: note);
+        _loadDashboardData();
+      },
+      child: Container(
+        width: 170,
+        decoration: BoxDecoration(
+          color: bg,
+          border: Border.all(color: const Color(0xFF1E1E1E), width: 2.0),
+          boxShadow: const [
+            BoxShadow(color: Colors.white, offset: Offset(3, 3)),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              color: hBg,
+              child: Row(
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF1E1E1E),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (isPinned)
+                    const Icon(Icons.push_pin, size: 14, color: Color(0xFF8B6B00))
+                  else
+                    const Icon(Icons.sticky_note_2, size: 14, color: Color(0xFF555555)),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 6, 10, 2),
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF1E1E1E),
+                ),
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Text(
+                  content.isEmpty ? '(Empty Note)' : content,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    height: 1.3,
+                    color: content.isEmpty ? const Color(0xFF888888) : const Color(0xFF222222),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

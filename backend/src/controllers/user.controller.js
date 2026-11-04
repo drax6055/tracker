@@ -3,6 +3,7 @@ const Account = require('../models/account.model');
 const Transaction = require('../models/transaction.model');
 const Category = require('../models/category.model');
 const Debt = require('../models/debt.model');
+const Note = require('../models/note.model');
 const TokenService = require('../services/token.service');
 const ApiResponse = require('../utils/apiResponse');
 const asyncHandler = require('../utils/asyncHandler');
@@ -41,6 +42,7 @@ class UserController {
       Transaction.deleteMany({ userId }),
       Category.deleteMany({ userId }),
       Debt.deleteMany({ userId }),
+      Note.deleteMany({ userId }),
       TokenService.revokeAllUserRefreshTokens(userId),
     ]);
 

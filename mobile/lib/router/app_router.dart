@@ -20,6 +20,8 @@ import '../features/reports/presentation/screens/reports_screen.dart';
 import '../features/settings/presentation/screens/settings_screen.dart';
 import '../features/transactions/presentation/screens/add_transaction_screen.dart';
 import '../features/transactions/presentation/screens/transactions_screen.dart';
+import '../features/notes/presentation/screens/notes_screen.dart';
+import '../features/notes/presentation/screens/note_editor_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
@@ -223,5 +225,17 @@ final List<RouteBase> _appRoutes = [
       path: '/settings',
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => const SettingsScreen(),
+    ),
+    GoRoute(
+      path: '/notes',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const NotesScreen(),
+    ),
+    GoRoute(
+      path: '/notes/editor',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => NoteEditorScreen(
+        note: state.extra as Map<String, dynamic>?,
+      ),
     ),
   ];

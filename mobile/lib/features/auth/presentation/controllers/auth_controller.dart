@@ -5,6 +5,7 @@ import '../../../../core/network/api_exception.dart';
 import '../../../../core/storage/secure_storage_service.dart';
 import '../../../../core/services/cloud_sync_service.dart';
 import '../../../transactions/presentation/controllers/transactions_controller.dart';
+import '../../../notes/presentation/controllers/notes_controller.dart';
 import '../../data/auth_repository.dart';
 import '../../data/models/user_model.dart';
 
@@ -155,6 +156,7 @@ class AuthController extends Notifier<AuthState> {
       final response = await _repo.login(email: email, password: password, force: force);
       await CloudSyncService().syncAll();
       ref.invalidate(transactionsProvider);
+      ref.invalidate(notesProvider);
       state = state.copyWith(
         user: response.user,
         isAuthenticated: true,
@@ -201,6 +203,7 @@ class AuthController extends Notifier<AuthState> {
       );
       await CloudSyncService().syncAll();
       ref.invalidate(transactionsProvider);
+      ref.invalidate(notesProvider);
       state = state.copyWith(
         user: response.user,
         isAuthenticated: true,
@@ -266,6 +269,7 @@ class AuthController extends Notifier<AuthState> {
   Future<void> requirePasswordLogin() async {
     _stopSessionPolling();
     ref.invalidate(transactionsProvider);
+    ref.invalidate(notesProvider);
     await SecureStorageService.clearAuthTokensOnly();
     state = const AuthState(isAuthenticated: false, isLoading: false);
   }
@@ -273,6 +277,7 @@ class AuthController extends Notifier<AuthState> {
   Future<void> logout() async {
     _stopSessionPolling();
     ref.invalidate(transactionsProvider);
+    ref.invalidate(notesProvider);
     await _repo.logout();
     state = const AuthState(isAuthenticated: false);
   }

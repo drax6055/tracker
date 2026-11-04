@@ -49,6 +49,7 @@ class ApiEndpoints {
   static const String debts = '/debts';
   static const String categories = '/categories';
   static const String budgets = '/budgets';
+  static const String notes = '/notes';
 
   // Reports & Dashboard
   static const String dashboard = '/dashboard';

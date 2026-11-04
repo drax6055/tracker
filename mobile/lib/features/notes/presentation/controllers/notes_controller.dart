@@ -61,3 +61,4 @@ class NotesNotifier extends Notifier<List<Map<String, dynamic>>> {
     }
   }
 }
+

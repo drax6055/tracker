@@ -40,3 +40,4 @@ const noteSchema = new mongoose.Schema(
 noteSchema.index({ userId: 1, isPinned: -1, updatedAt: -1 });
 
 module.exports = mongoose.model('Note', noteSchema);
+

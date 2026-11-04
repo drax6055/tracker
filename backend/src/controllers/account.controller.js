@@ -3,6 +3,18 @@ const ApiResponse = require('../utils/apiResponse');
 const AppError = require('../utils/appError');
 const asyncHandler = require('../utils/asyncHandler');
 
+const DEMO_ACCOUNT_TITLES = [
+  'HDFC Salaried Account',
+  'Physical Cash Vault',
+  'Infinia Metal Card',
+  'Vehicle Loan #49281',
+];
+
+const isDemoUser = (email) => {
+  const norm = (email || '').toLowerCase().trim();
+  return norm === 'bruce@wayne.corp' || norm === 'bruce@wayn.corp';
+};
+
 // Map mongo document to client format with clean `id`
 const formatAccount = (doc) => {
   const obj = doc.toObject ? doc.toObject() : doc;
@@ -35,6 +47,11 @@ const createAccount = asyncHandler(async (req, res) => {
 
   if (!title) {
     throw new AppError('Account title is required', 400);
+  }
+
+  // Reject demo accounts for non-demo users
+  if (!isDemoUser(req.user.email) && DEMO_ACCOUNT_TITLES.includes(title)) {
+    throw new AppError('Cannot create demo account on standard user profile', 400);
   }
 
   const account = await Account.create({
@@ -108,8 +125,17 @@ const syncAccounts = asyncHandler(async (req, res) => {
     throw new AppError('Accounts list must be an array', 400);
   }
 
+  if (accounts.length > 500) {
+    throw new AppError('Too many accounts in sync payload (max 500)', 400);
+  }
+
+  const userIsDemo = isDemoUser(req.user.email);
+  const filteredAccounts = userIsDemo
+    ? accounts
+    : accounts.filter((item) => !DEMO_ACCOUNT_TITLES.includes(item.title));
+
   const results = [];
-  for (const item of accounts) {
+  for (const item of filteredAccounts) {
     let acc;
     if (item._id || (item.id && item.id.length === 24)) {
       acc = await Account.findOne({ _id: item._id || item.id, userId: req.user._id });

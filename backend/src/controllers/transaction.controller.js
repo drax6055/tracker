@@ -4,6 +4,22 @@ const ApiResponse = require('../utils/apiResponse');
 const AppError = require('../utils/appError');
 const asyncHandler = require('../utils/asyncHandler');
 
+const DEMO_TX_TITLES = [
+  'Salary Credit',
+  'Grocery & Supermarket',
+  'Coffee & Bistro',
+  'Cash Withdrawal',
+  'Electricity Bill',
+  'Freelance UI Design',
+  'Netflix & Spotify',
+  'Health Insurance EMI',
+];
+
+const isDemoUser = (email) => {
+  const norm = (email || '').toLowerCase().trim();
+  return norm === 'bruce@wayne.corp' || norm === 'bruce@wayn.corp';
+};
+
 const formatTransaction = (doc) => {
   const obj = doc.toObject ? doc.toObject() : doc;
   obj.id = obj._id.toString();
@@ -12,7 +28,15 @@ const formatTransaction = (doc) => {
 
 // GET /api/v1/transactions
 const getTransactions = asyncHandler(async (req, res) => {
-  const transactions = await Transaction.find({ userId: req.user._id }).sort({ timestamp: -1 });
+  // Pagination support
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+  const skip = (page - 1) * limit;
+
+  const transactions = await Transaction.find({ userId: req.user._id })
+    .sort({ timestamp: -1 })
+    .skip(skip)
+    .limit(limit);
   return ApiResponse.success(res, transactions.map(formatTransaction), 'Transactions retrieved successfully');
 });
 
@@ -24,7 +48,15 @@ const createTransaction = asyncHandler(async (req, res) => {
     throw new AppError('Title, type, category, account, and amount are required', 400);
   }
 
+  if (!isDemoUser(req.user.email) && DEMO_TX_TITLES.includes(title)) {
+    throw new AppError('Cannot create demo transaction on standard user profile', 400);
+  }
+
   const numAmount = Number(amount);
+  if (!Number.isFinite(numAmount) || numAmount <= 0) {
+    throw new AppError('Amount must be a positive number', 400);
+  }
+
   const tx = await Transaction.create({
     userId: req.user._id,
     title,
@@ -39,7 +71,7 @@ const createTransaction = asyncHandler(async (req, res) => {
   });
 
   // Dynamically update account balance in MongoDB
-  if (type === 'TRANSFER' && account.contains && account.contains('->')) {
+  if (type === 'TRANSFER' && account.includes('->')) {
     const parts = account.split('->').map((e) => e.trim());
     if (parts.length >= 2) {
       const fromAcc = await Account.findOne({ title: parts[0], userId: req.user._id });
@@ -71,7 +103,7 @@ const createTransaction = asyncHandler(async (req, res) => {
     }
   }
 
-  return ApiResponse.created(res, formatTransaction(tx), 'Transaction recorded successfully');
+  return ApiResponse.created(res, formatTransaction(tx), 'Transaction created successfully');
 });
 
 // PUT /api/v1/transactions/:id
@@ -102,28 +134,50 @@ const deleteTransaction = asyncHandler(async (req, res) => {
   return ApiResponse.success(res, null, 'Transaction deleted successfully');
 });
 
-// POST /api/v1/transactions/sync (bulk sync from client storage)
+// POST /api/v1/transactions/sync
 const syncTransactions = asyncHandler(async (req, res) => {
   const { transactions } = req.body;
   if (!Array.isArray(transactions)) {
-    throw new AppError('Transactions must be an array', 400);
+    throw new AppError('Transactions list must be an array', 400);
   }
 
+  if (transactions.length > 500) {
+    throw new AppError('Too many transactions in sync payload (max 500)', 400);
+  }
+
+  const userIsDemo = isDemoUser(req.user.email);
+  const filteredTxs = userIsDemo
+    ? transactions
+    : transactions.filter((t) => !DEMO_TX_TITLES.includes(t.title));
+
   const results = [];
-  for (const item of transactions) {
+  for (const item of filteredTxs) {
     let tx;
     if (item._id || (item.id && item.id.length === 24)) {
       tx = await Transaction.findOne({ _id: item._id || item.id, userId: req.user._id });
     }
-    if (!tx) {
+
+    if (tx) {
+      // UPDATE existing record
+      tx.title = item.title || tx.title;
+      tx.type = item.type || tx.type;
+      tx.category = item.category || tx.category;
+      tx.account = item.account || tx.account;
+      tx.accountId = item.accountId !== undefined ? item.accountId : tx.accountId;
+      tx.amount = item.amount !== undefined ? Number(item.amount) : tx.amount;
+      tx.date = item.date !== undefined ? item.date : tx.date;
+      tx.timestamp = item.timestamp ? new Date(item.timestamp) : tx.timestamp;
+      tx.note = item.note !== undefined ? item.note : tx.note;
+      await tx.save();
+    } else {
       tx = await Transaction.create({
         userId: req.user._id,
         title: item.title,
-        type: item.type,
-        category: item.category,
-        account: item.account,
+        type: item.type || 'EXPENSE',
+        category: item.category || 'General',
+        account: item.account || 'Default Account',
         accountId: item.accountId || '',
-        amount: Number(item.amount),
+        amount: item.amount !== undefined ? Number(item.amount) : 0,
         date: item.date || '',
         timestamp: item.timestamp ? new Date(item.timestamp) : new Date(),
         note: item.note || '',

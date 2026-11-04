@@ -3,6 +3,16 @@ const path = require('path');
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
+// Throw on missing critical secrets in production
+const requiredInProduction = ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET', 'ENCRYPTION_SECRET', 'MONGODB_URI'];
+if ((process.env.NODE_ENV || 'development') === 'production') {
+  requiredInProduction.forEach((key) => {
+    if (!process.env[key]) {
+      throw new Error(`Missing required environment variable: ${key}`);
+    }
+  });
+}
+
 module.exports = {
   env: process.env.NODE_ENV || 'development',
   port: parseInt(process.env.PORT, 10) || 5000,

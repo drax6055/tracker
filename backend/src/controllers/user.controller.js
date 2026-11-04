@@ -1,4 +1,8 @@
 const User = require('../models/user.model');
+const Account = require('../models/account.model');
+const Transaction = require('../models/transaction.model');
+const Category = require('../models/category.model');
+const Debt = require('../models/debt.model');
 const TokenService = require('../services/token.service');
 const ApiResponse = require('../utils/apiResponse');
 const asyncHandler = require('../utils/asyncHandler');
@@ -6,8 +10,8 @@ const AppError = require('../utils/appError');
 
 class UserController {
   static getMe = asyncHandler(async (req, res) => {
-    const user = await User.findById(req.user._id);
-    return ApiResponse.success(res, { user }, 'User profile fetched successfully');
+    // Return user from request (already populated by protect middleware)
+    return ApiResponse.success(res, { user: req.user }, 'User profile fetched successfully');
   });
 
   static updateMe = asyncHandler(async (req, res) => {
@@ -31,8 +35,14 @@ class UserController {
   static deleteMe = asyncHandler(async (req, res) => {
     const userId = req.user._id;
 
-    // Revoke all tokens
-    await TokenService.revokeAllUserRefreshTokens(userId);
+    // Cascade-delete all user data before removing account
+    await Promise.all([
+      Account.deleteMany({ userId }),
+      Transaction.deleteMany({ userId }),
+      Category.deleteMany({ userId }),
+      Debt.deleteMany({ userId }),
+      TokenService.revokeAllUserRefreshTokens(userId),
+    ]);
 
     // Delete user
     await User.findByIdAndDelete(userId);

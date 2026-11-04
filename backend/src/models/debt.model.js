@@ -37,7 +37,7 @@ const debtSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['ACTIVE', 'SETTLED'],
+      enum: ['ACTIVE', 'PARTIALLY_PAID', 'SETTLED'],
       default: 'ACTIVE',
     },
   },

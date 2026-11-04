@@ -283,7 +283,7 @@ class AuthService {
     await TokenService.revokeAllUserRefreshTokens(userId);
 
     // Issue fresh tokens
-    const tokens = await TokenService.generateAuthTokens(user);
+    const tokens = await TokenService.generateAuthTokens(user, user.currentDeviceName, user.currentDeviceId);
 
     return {
       message: 'Password changed successfully',

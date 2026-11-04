@@ -3,6 +3,13 @@ const ApiResponse = require('../utils/apiResponse');
 const AppError = require('../utils/appError');
 const asyncHandler = require('../utils/asyncHandler');
 
+const DEMO_DEBT_PERSONS = ['Peter Parker', 'Tony Stark', 'Clark Kent'];
+
+const isDemoUser = (email) => {
+  const norm = (email || '').toLowerCase().trim();
+  return norm === 'bruce@wayne.corp' || norm === 'bruce@wayn.corp';
+};
+
 const formatDebt = (doc) => {
   const obj = doc.toObject ? doc.toObject() : doc;
   obj.id = obj._id.toString();
@@ -21,6 +28,10 @@ const createDebt = asyncHandler(async (req, res) => {
 
   if (!personName || amount === undefined || !type) {
     throw new AppError('Person name, amount, and type are required', 400);
+  }
+
+  if (!isDemoUser(req.user.email) && DEMO_DEBT_PERSONS.includes(personName)) {
+    throw new AppError('Cannot create demo debt record on standard user profile', 400);
   }
 
   const numAmount = Number(amount);
@@ -70,28 +81,55 @@ const deleteDebt = asyncHandler(async (req, res) => {
 const syncDebts = asyncHandler(async (req, res) => {
   const { debts } = req.body;
   if (!Array.isArray(debts)) {
-    throw new AppError('Debts must be an array', 400);
+    throw new AppError('Debts list must be an array', 400);
   }
 
+  if (debts.length > 500) {
+    throw new AppError('Too many debts in sync payload (max 500)', 400);
+  }
+
+  const userIsDemo = isDemoUser(req.user.email);
+  const filteredDebts = userIsDemo
+    ? debts
+    : debts.filter((d) => {
+        const name = d.personName || d.person;
+        return !DEMO_DEBT_PERSONS.includes(name);
+      });
+
   const results = [];
-  for (const item of debts) {
-    let d;
+  for (const item of filteredDebts) {
+    let debt;
     if (item._id || (item.id && item.id.length === 24)) {
-      d = await Debt.findOne({ _id: item._id || item.id, userId: req.user._id });
+      debt = await Debt.findOne({ _id: item._id || item.id, userId: req.user._id });
     }
-    if (!d) {
-      d = await Debt.create({
+
+    const personName = item.personName || item.person || 'Unknown';
+    const amount = Number(item.amount || item.originalAmount || 0);
+    const remaining = item.remainingAmount !== undefined ? Number(item.remainingAmount) : amount;
+
+    if (debt) {
+      // UPDATE existing record
+      debt.personName = personName;
+      debt.amount = amount;
+      debt.remainingAmount = remaining;
+      debt.type = item.type || debt.type;
+      debt.dueDate = item.dueDate !== undefined ? item.dueDate : debt.dueDate;
+      debt.note = item.note !== undefined ? (item.note || item.notes || '') : debt.note;
+      debt.status = item.status || debt.status;
+      await debt.save();
+    } else {
+      debt = await Debt.create({
         userId: req.user._id,
-        personName: item.personName,
-        amount: Number(item.amount),
-        remainingAmount: item.remainingAmount !== undefined ? Number(item.remainingAmount) : Number(item.amount),
-        type: item.type,
+        personName,
+        amount,
+        remainingAmount: remaining,
+        type: item.type || 'LENT',
         dueDate: item.dueDate || '',
-        note: item.note || '',
+        note: item.note || item.notes || '',
         status: item.status || 'ACTIVE',
       });
     }
-    results.push(formatDebt(d));
+    results.push(formatDebt(debt));
   }
 
   return ApiResponse.success(res, results, 'Debts synced successfully');

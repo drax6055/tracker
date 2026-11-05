@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import '../constants/api_endpoints.dart';
 import '../network/api_client.dart';
 import '../storage/secure_storage_service.dart';
+import '../widgets/brutal_toast.dart';
 
 class CloudSyncService {
   static final CloudSyncService _instance = CloudSyncService._internal();
@@ -76,14 +78,20 @@ class CloudSyncService {
         '${ApiEndpoints.accounts}/$id',
         data: accountData,
       );
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[CloudSync] Error updating cloud account $id: $e');
+      BrutalToast.showError(null, 'ERROR UPDATING CLOUD ACCOUNT: $e');
+    }
   }
 
   /// Delete Account in Cloud
   Future<void> deleteAccount(String id) async {
     try {
       await _client.dio.delete('${ApiEndpoints.accounts}/$id');
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[CloudSync] Error deleting cloud account $id: $e');
+      BrutalToast.showError(null, 'ERROR DELETING CLOUD ACCOUNT: $e');
+    }
   }
 
   /// Sync Transactions between Cloud and Local
@@ -129,7 +137,10 @@ class CloudSyncService {
   Future<void> deleteTransaction(String id) async {
     try {
       await _client.dio.delete('${ApiEndpoints.transactions}/$id');
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[CloudSync] Error deleting cloud transaction $id: $e');
+      BrutalToast.showError(null, 'ERROR DELETING CLOUD TRANSACTION: $e');
+    }
   }
 
   /// Sync Categories
@@ -144,7 +155,11 @@ class CloudSyncService {
         final cloudCats = list.map((e) => (e is Map ? e['name'] : e).toString()).toList();
         await SecureStorageService.saveCategories(cloudCats);
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[CloudSync] Error syncing categories: $e');
+      BrutalToast.showError(null, 'ERROR SYNCING CATEGORIES: $e');
+    }
+
   }
 
   /// Sync Debts
@@ -190,7 +205,10 @@ class CloudSyncService {
   Future<void> deleteDebt(String id) async {
     try {
       await _client.dio.delete('${ApiEndpoints.debts}/$id');
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[CloudSync] Error deleting cloud debt $id: $e');
+      BrutalToast.showError(null, 'ERROR DELETING CLOUD DEBT: $e');
+    }
   }
 
   /// Sync Sticky Notes between Cloud and Local
@@ -232,14 +250,20 @@ class CloudSyncService {
         '${ApiEndpoints.notes}/$id',
         data: noteData,
       );
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[CloudSync] Error updating cloud note $id: $e');
+      BrutalToast.showError(null, 'ERROR UPDATING CLOUD NOTE: $e');
+    }
   }
 
   /// Delete Note in Cloud
   Future<void> deleteNote(String id) async {
     try {
       await _client.dio.delete('${ApiEndpoints.notes}/$id');
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[CloudSync] Error deleting cloud note $id: $e');
+      BrutalToast.showError(null, 'ERROR DELETING CLOUD NOTE: $e');
+    }
   }
 
   /// Sync IPO Applications between Cloud and Local
@@ -281,14 +305,20 @@ class CloudSyncService {
         '${ApiEndpoints.ipos}/$id',
         data: ipoData,
       );
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[CloudSync] Error updating cloud IPO $id: $e');
+      BrutalToast.showError(null, 'ERROR UPDATING CLOUD IPO: $e');
+    }
   }
 
   /// Delete IPO Application in Cloud
   Future<void> deleteIpo(String id) async {
     try {
       await _client.dio.delete('${ApiEndpoints.ipos}/$id');
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[CloudSync] Error deleting cloud IPO $id: $e');
+      BrutalToast.showError(null, 'ERROR DELETING CLOUD IPO: $e');
+    }
   }
 
   /// Get CA Tax Audit Report from Cloud

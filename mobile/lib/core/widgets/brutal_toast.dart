@@ -5,30 +5,78 @@ import '../theme/brutal_typography.dart';
 class BrutalToast {
   BrutalToast._();
 
-  static void showSuccess(BuildContext context, String message) {
-    _show(context, message, BrutalColors.green, BrutalColors.textDark, Icons.check_circle_outline);
+  static final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+      GlobalKey<ScaffoldMessengerState>();
+
+  static String _sanitizeMessage(String? message, String defaultFallback) {
+    if (message == null || message.trim().isEmpty) {
+      return defaultFallback;
+    }
+    return message.trim();
   }
 
-  static void showError(BuildContext context, String message) {
-    _show(context, message, BrutalColors.red, BrutalColors.textPrimary, Icons.error_outline);
+  static void showSuccess([
+    BuildContext? context,
+    String message = 'OPERATION COMPLETED SUCCESSFULLY',
+  ]) {
+    _show(
+      context,
+      _sanitizeMessage(message, 'OPERATION COMPLETED SUCCESSFULLY'),
+      BrutalColors.green,
+      BrutalColors.textDark,
+      Icons.check_circle_outline,
+    );
   }
 
-  static void showInfo(BuildContext context, String message) {
-    _show(context, message, BrutalColors.cyan, BrutalColors.textDark, Icons.info_outline);
+  static void showError([
+    BuildContext? context,
+    String message = 'AN UNEXPECTED ERROR OCCURRED',
+  ]) {
+    _show(
+      context,
+      _sanitizeMessage(message, 'AN UNEXPECTED ERROR OCCURRED'),
+      BrutalColors.red,
+      BrutalColors.textPrimary,
+      Icons.error_outline,
+    );
   }
 
-  static void showWarning(BuildContext context, String message) {
-    _show(context, message, BrutalColors.primaryYellow, BrutalColors.textDark, Icons.warning_amber_rounded);
+  static void showInfo([
+    BuildContext? context,
+    String message = 'INFORMATION UPDATED',
+  ]) {
+    _show(
+      context,
+      _sanitizeMessage(message, 'INFORMATION UPDATED'),
+      BrutalColors.cyan,
+      BrutalColors.textDark,
+      Icons.info_outline,
+    );
+  }
+
+  static void showWarning([
+    BuildContext? context,
+    String message = 'ATTENTION REQUIRED',
+  ]) {
+    _show(
+      context,
+      _sanitizeMessage(message, 'ATTENTION REQUIRED'),
+      BrutalColors.primaryYellow,
+      BrutalColors.textDark,
+      Icons.warning_amber_rounded,
+    );
   }
 
   static void _show(
-    BuildContext context,
+    BuildContext? context,
     String message,
     Color bg,
     Color textColor,  
     IconData icon,
   ) {
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final scaffoldMessenger = (context != null ? ScaffoldMessenger.maybeOf(context) : null) ??
+        scaffoldMessengerKey.currentState;
+    if (scaffoldMessenger == null) return;
     scaffoldMessenger.hideCurrentSnackBar();
 
     scaffoldMessenger.showSnackBar(

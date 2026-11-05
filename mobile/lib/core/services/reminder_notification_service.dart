@@ -4,6 +4,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import '../storage/secure_storage_service.dart';
+import '../widgets/brutal_toast.dart';
 
 /// Service responsible for managing daily ledger entry reminders.
 /// Uses native OS AlarmManager (Android) and UNCalendarNotificationTrigger (iOS)
@@ -187,7 +188,10 @@ class ReminderNotificationService {
       if (kDebugMode) {
         print('[NotificationService] Native OS alarms cancelled.');
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[NotificationService] Error cancelling daily reminders: $e');
+      BrutalToast.showError(null, 'ERROR CANCELLING REMINDERS: $e');
+    }
   }
 
   /// Trigger immediate demonstration notification into system tray
@@ -384,7 +388,10 @@ class ReminderNotificationService {
   Future<void> cancelNotification(int id) async {
     try {
       await _notificationsPlugin.cancel(id: id);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[NotificationService] Error cancelling notification #$id: $e');
+      BrutalToast.showError(null, 'ERROR CANCELLING NOTIFICATION: $e');
+    }
   }
 
   /// Calculate the next instance of [hour]:[minute] in the local timezone

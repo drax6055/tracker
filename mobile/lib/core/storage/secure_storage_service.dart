@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../widgets/brutal_toast.dart';
 
 class SecureStorageService {
   static const _storage = FlutterSecureStorage();
@@ -356,7 +357,10 @@ class SecureStorageService {
     _memCategories = List<String>.from(categories);
     try {
       await _storage.write(key: _categoriesKey, value: jsonEncode(categories));
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[SecureStorage] Error saving categories: $e');
+      BrutalToast.showError(null, 'ERROR SAVING CATEGORIES: $e');
+    }
   }
 
   static Future<List<String>> getCategories() async {
@@ -371,7 +375,10 @@ class SecureStorageService {
         _memCategories = List<String>.from(res);
         return res;
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[SecureStorage] Error loading categories: $e');
+      BrutalToast.showError(null, 'ERROR LOADING CATEGORIES: $e');
+    }
 
     // If empty and demo user, return demo categories; else completely empty!
     if (await isCurrentUserDemo()) {
@@ -400,7 +407,10 @@ class SecureStorageService {
     final prefix = await _userKeyPrefix();
     try {
       await _storage.write(key: '$prefix$_accountsKey', value: jsonEncode(accounts));
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[SecureStorage] Error saving accounts: $e');
+      BrutalToast.showError(null, 'ERROR SAVING ACCOUNTS: $e');
+    }
   }
 
   static Future<List<Map<String, dynamic>>> getAccounts() async {
@@ -423,7 +433,10 @@ class SecureStorageService {
         _memAccounts = List<Map<String, dynamic>>.from(res);
         return res;
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[SecureStorage] Error loading accounts: $e');
+      BrutalToast.showError(null, 'ERROR LOADING ACCOUNTS: $e');
+    }
 
     // Only return demo accounts if explicitly Bruce Wayne demo account!
     if (isDemo) {
@@ -443,7 +456,10 @@ class SecureStorageService {
     final prefix = await _userKeyPrefix();
     try {
       await _storage.write(key: '$prefix$_transactionsKey', value: jsonEncode(transactions));
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[SecureStorage] Error saving transactions: $e');
+      BrutalToast.showError(null, 'ERROR SAVING TRANSACTIONS: $e');
+    }
   }
 
   static Future<List<Map<String, dynamic>>> getTransactions() async {
@@ -471,7 +487,10 @@ class SecureStorageService {
         _memTransactions = List<Map<String, dynamic>>.from(res);
         return res;
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[SecureStorage] Error loading transactions: $e');
+      BrutalToast.showError(null, 'ERROR LOADING TRANSACTIONS: $e');
+    }
 
     if (isDemo) {
       _memTransactions = List<Map<String, dynamic>>.from(demoTransactions);
@@ -556,7 +575,10 @@ class SecureStorageService {
     final prefix = await _userKeyPrefix();
     try {
       await _storage.write(key: '$prefix$_debtsKey', value: jsonEncode(debts));
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[SecureStorage] Error saving debts: $e');
+      BrutalToast.showError(null, 'ERROR SAVING DEBTS: $e');
+    }
   }
 
   static Future<List<Map<String, dynamic>>> getDebts() async {
@@ -579,7 +601,10 @@ class SecureStorageService {
         _memDebts = List<Map<String, dynamic>>.from(res);
         return res;
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[SecureStorage] Error loading debts: $e');
+      BrutalToast.showError(null, 'ERROR LOADING DEBTS: $e');
+    }
 
     if (isDemo) {
       _memDebts = List<Map<String, dynamic>>.from(demoDebts);
@@ -598,7 +623,10 @@ class SecureStorageService {
     final prefix = await _userKeyPrefix();
     try {
       await _storage.write(key: '$prefix$_notesKey', value: jsonEncode(notes));
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[SecureStorage] Error saving sticky notes: $e');
+      BrutalToast.showError(null, 'ERROR SAVING STICKY NOTES: $e');
+    }
   }
 
   static Future<List<Map<String, dynamic>>> getNotes() async {
@@ -625,7 +653,10 @@ class SecureStorageService {
         _memNotes = List<Map<String, dynamic>>.from(res);
         return res;
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[SecureStorage] Error loading sticky notes: $e');
+      BrutalToast.showError(null, 'ERROR LOADING STICKY NOTES: $e');
+    }
 
     _memNotes = [];
     return [];
@@ -699,7 +730,10 @@ class SecureStorageService {
     final prefix = await _userKeyPrefix();
     try {
       await _storage.write(key: '$prefix$_iposKey', value: jsonEncode(ipos));
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[SecureStorage] Error saving IPOs: $e');
+      BrutalToast.showError(null, 'ERROR SAVING IPOS: $e');
+    }
   }
 
   static Future<List<Map<String, dynamic>>> getIpos() async {
@@ -723,7 +757,10 @@ class SecureStorageService {
         _memIpos = res;
         return List<Map<String, dynamic>>.from(res);
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[SecureStorage] Error loading IPOs: $e');
+      BrutalToast.showError(null, 'ERROR LOADING IPOS: $e');
+    }
 
     _memIpos = [];
     return [];
@@ -766,13 +803,19 @@ class SecureStorageService {
         _memDeviceId = id;
         return id;
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[SecureStorage] Error reading device ID: $e');
+      BrutalToast.showError(null, 'ERROR READING DEVICE ID: $e');
+    }
 
     final generated = 'dev_${DateTime.now().millisecondsSinceEpoch}_${(DateTime.now().microsecond % 9999)}';
     _memDeviceId = generated;
     try {
       await _storage.write(key: _deviceIdKey, value: generated);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[SecureStorage] Error saving device ID: $e');
+      BrutalToast.showError(null, 'ERROR SAVING DEVICE ID: $e');
+    }
     return generated;
   }
 

@@ -1,9 +1,11 @@
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/theme/brutal_colors.dart';
 import '../../../../core/theme/brutal_typography.dart';
 import '../../../../core/widgets/brutal_app_bar.dart';
+import '../../../../core/widgets/brutal_chip.dart';
 import '../../../../core/widgets/brutal_dialog.dart';
 import '../../../../core/widgets/brutal_toast.dart';
 import '../controllers/notes_controller.dart';
@@ -148,74 +150,55 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Search Bar & Filter Strip
+            // Search Bar & Filter Strip (Matching Ledger Log Screen)
             Container(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              padding: const EdgeInsets.all(16),
               decoration: const BoxDecoration(
-                color: BrutalColors.surface,
-                border: Border(
-                  bottom: BorderSide(color: BrutalColors.border, width: 2.0),
-                ),
+                border: Border(bottom: BorderSide(color: BrutalColors.border, width: 2.5)),
               ),
               child: Column(
                 children: [
-                  // Search Box
-                  Container(
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: BrutalColors.surfaceElevated,
-                      border: Border.all(color: BrutalColors.borderDim, width: 1.5),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.search, color: BrutalColors.textMuted, size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            controller: _searchController,
-                            style: const TextStyle(color: Colors.white, fontSize: 13),
-                            onChanged: (_) => setState(() {}),
-                            decoration: InputDecoration(
-                              hintText: 'SEARCH NOTES BY TITLE OR CONTENT...',
-                              hintStyle: TextStyle(color: BrutalColors.textMuted, fontSize: 11),
-                              border: InputBorder.none,
-                              isDense: true,
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                          ),
-                        ),
-                        if (_searchController.text.isNotEmpty)
-                          GestureDetector(
-                            onTap: () {
-                              _searchController.clear();
-                              setState(() {});
-                            },
-                            child: const Icon(Icons.close, color: BrutalColors.textMuted, size: 18),
-                          ),
-                      ],
+                  TextField(
+                    controller: _searchController,
+                    onChanged: (val) => setState(() {}),
+                    style: BrutalTypography.bodyMedium.copyWith(color: BrutalColors.textPrimary),
+                    cursorColor: BrutalColors.primaryYellow,
+                    decoration: InputDecoration(
+                      hintText: 'SEARCH NOTES BY TITLE OR CONTENT...',
+                      hintStyle: BrutalTypography.bodyMedium.copyWith(color: BrutalColors.textMuted),
+                      prefixIcon: const Icon(Icons.search, color: BrutalColors.textPrimary),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.close, color: BrutalColors.textPrimary),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {});
+                              },
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: BrutalColors.surface,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     ),
                   ),
-                  const SizedBox(height: 10),
-
-                  // Color Filter Pills
+                  const SizedBox(height: 12),
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
-                        _buildFilterPill('ALL', Colors.white, Colors.black),
+                        _buildFilterChip('ALL', BrutalColors.primaryYellow),
                         const SizedBox(width: 8),
-                        _buildFilterPill('YELLOW', stickyColors['yellow']!, Colors.black),
+                        _buildFilterChip('YELLOW', stickyColors['yellow']!),
                         const SizedBox(width: 8),
-                        _buildFilterPill('LIME', stickyColors['lime']!, Colors.black),
+                        _buildFilterChip('LIME', stickyColors['lime']!),
                         const SizedBox(width: 8),
-                        _buildFilterPill('CYAN', stickyColors['cyan']!, Colors.black),
+                        _buildFilterChip('CYAN', stickyColors['cyan']!),
                         const SizedBox(width: 8),
-                        _buildFilterPill('PINK', stickyColors['pink']!, Colors.black),
+                        _buildFilterChip('PINK', stickyColors['pink']!),
                         const SizedBox(width: 8),
-                        _buildFilterPill('ORANGE', stickyColors['orange']!, Colors.black),
+                        _buildFilterChip('ORANGE', stickyColors['orange']!),
                         const SizedBox(width: 8),
-                        _buildFilterPill('PURPLE', stickyColors['purple']!, Colors.black),
+                        _buildFilterChip('PURPLE', stickyColors['purple']!),
                       ],
                     ),
                   ),
@@ -278,33 +261,15 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     );
   }
 
-  Widget _buildFilterPill(String label, Color bg, Color text) {
+  Widget _buildFilterChip(String label, Color accent) {
     final isSelected = _selectedColorFilter.toUpperCase() == label.toUpperCase();
-
-    return GestureDetector(
+    return BrutalChip(
+      label: label,
+      backgroundColor: isSelected ? accent : BrutalColors.surfaceElevated,
+      textColor: isSelected ? BrutalColors.textDark : BrutalColors.textSecondary,
+      borderColor: isSelected ? BrutalColors.border : BrutalColors.borderDim,
+      shadowOffset: isSelected ? 3.0 : 0.0,
       onTap: () => setState(() => _selectedColorFilter = label),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: isSelected ? bg : BrutalColors.surfaceElevated,
-          border: Border.all(
-            color: isSelected ? Colors.white : BrutalColors.borderDim,
-            width: isSelected ? 2.0 : 1.0,
-          ),
-          boxShadow: isSelected
-              ? [const BoxShadow(color: Colors.white, offset: Offset(2, 2))]
-              : null,
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w900,
-            color: isSelected ? text : BrutalColors.textSecondary,
-            letterSpacing: 0.8,
-          ),
-        ),
-      ),
     );
   }
 
@@ -338,7 +303,6 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
     final isPinned = note['isPinned'] == true;
     final dateDisplay = _formatDate(note['createdAtClient'] ?? note['createdAt']);
 
-    final noteBg = stickyColors[colorKey] ?? stickyColors['yellow']!;
     final headerBg = stickyHeaderColors[colorKey] ?? stickyHeaderColors['yellow']!;
 
     return GestureDetector(
@@ -350,10 +314,10 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       },
       child: Container(
         decoration: BoxDecoration(
-          color: noteBg,
-          border: Border.all(color: const Color(0xFF1E1E1E), width: 2.0),
-          boxShadow: const [
-            BoxShadow(color: Colors.white, offset: Offset(3, 3)),
+          color: BrutalColors.surfaceCard,
+          border: Border.all(color: headerBg, width: 2.0),
+          boxShadow: [
+            BoxShadow(color: headerBg, offset: const Offset(3.5, 3.5)),
           ],
         ),
         child: Column(
@@ -388,6 +352,16 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                       shape: BoxShape.circle,
                     ),
                   ),
+                  const SizedBox(width: 6),
+                  Text(
+                    colorKey.toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF1E1E1E),
+                      letterSpacing: 0.8,
+                    ),
+                  ),
                   const Spacer(),
                   // Pin toggle icon
                   GestureDetector(
@@ -397,7 +371,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                       child: Icon(
                         isPinned ? Icons.push_pin : Icons.push_pin_outlined,
                         size: 16,
-                        color: isPinned ? const Color(0xFF8B6B00) : const Color(0xFF555555),
+                        color: isPinned ? const Color(0xFF8B6B00) : const Color(0xFF333333),
                       ),
                     ),
                   ),
@@ -408,31 +382,31 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                     child: const Icon(
                       Icons.close,
                       size: 16,
-                      color: Color(0xFF555555),
+                      color: Color(0xFF333333),
                     ),
                   ),
                 ],
               ),
             ),
 
-            // Note Title
+            // Note Title (White and crisp, 100% visible)
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
               child: Text(
                 title,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: BrutalTypography.headingSmall.copyWith(
                   fontSize: 15,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF1E1E1E),
+                  color: BrutalColors.textPrimary,
                   letterSpacing: -0.3,
                   height: 1.2,
                 ),
               ),
             ),
 
-            // Content Preview
+            // Content Preview (High contrast textSecondary)
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 2, 12, 8),
@@ -443,7 +417,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                   style: TextStyle(
                     fontSize: 12.5,
                     height: 1.4,
-                    color: content.isEmpty ? const Color(0xFF888888) : const Color(0xFF222222),
+                    color: content.isEmpty ? BrutalColors.textMuted : BrutalColors.textSecondary,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -454,14 +428,14 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: const BoxDecoration(
-                color: Color(0x181E1E1E),
+                color: BrutalColors.surfaceElevated,
                 border: Border(
-                  top: BorderSide(color: Color(0x221E1E1E), width: 1.0),
+                  top: BorderSide(color: BrutalColors.borderFaint, width: 1.0),
                 ),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.schedule, size: 12, color: Color(0xFF555555)),
+                  Icon(Icons.schedule, size: 12, color: headerBg),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
@@ -471,7 +445,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                       style: const TextStyle(
                         fontSize: 9.5,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF555555),
+                        color: BrutalColors.textSecondary,
                         letterSpacing: 0.3,
                       ),
                     ),

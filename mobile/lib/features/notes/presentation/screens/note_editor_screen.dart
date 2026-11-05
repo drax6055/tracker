@@ -144,7 +144,6 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen> {
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.note != null;
-    final noteBg = stickyColors[_selectedColor] ?? stickyColors['yellow']!;
     final noteHeaderBg = stickyHeaderColors[_selectedColor] ?? stickyHeaderColors['yellow']!;
 
     return Scaffold(
@@ -169,10 +168,10 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen> {
               // Sticky Note Canvas (Windows-style)
               Container(
                 decoration: BoxDecoration(
-                  color: noteBg,
-                  border: Border.all(color: BrutalColors.border, width: 2.5),
-                  boxShadow: const [
-                    BoxShadow(color: BrutalColors.border, offset: Offset(5, 5)),
+                  color: BrutalColors.surfaceCard,
+                  border: Border.all(color: noteHeaderBg, width: 2.5),
+                  boxShadow: [
+                    BoxShadow(color: noteHeaderBg, offset: const Offset(5, 5)),
                   ],
                 ),
                 child: Column(
@@ -251,24 +250,27 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen> {
                       ),
                     ),
 
-                    // Title Field
+                    // Title Field (White font, completely visible)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
                       child: TextField(
                         controller: _titleController,
-                        style: const TextStyle(
+                        style: BrutalTypography.headingMedium.copyWith(
                           fontSize: 20,
                           fontWeight: FontWeight.w900,
-                          color: Color(0xFF1E1E1E),
+                          color: BrutalColors.textPrimary,
                           letterSpacing: -0.5,
                         ),
-                        decoration: const InputDecoration(
-                          hintText: 'Note Title...',
-                          hintStyle: TextStyle(
+                        cursorColor: BrutalColors.primaryYellow,
+                        cursorWidth: 3.0,
+                        decoration: InputDecoration(
+                          hintText: 'NOTE TITLE...',
+                          hintStyle: BrutalTypography.headingMedium.copyWith(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF888888),
+                            color: BrutalColors.textMuted,
                           ),
+                          filled: false,
                           border: InputBorder.none,
                           enabledBorder: InputBorder.none,
                           focusedBorder: InputBorder.none,
@@ -279,27 +281,30 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen> {
                     ),
 
                     // Divider line inside note
-                    const Divider(color: Color(0x331E1E1E), thickness: 1.5, height: 16),
+                    const Divider(color: BrutalColors.borderFaint, thickness: 1.5, height: 16),
 
-                    // Content Field
+                    // Content Field (White font, completely visible)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                       child: TextField(
                         controller: _contentController,
                         maxLines: null,
                         minLines: 8,
-                        style: const TextStyle(
+                        style: BrutalTypography.bodyLarge.copyWith(
                           fontSize: 15,
                           height: 1.5,
-                          color: Color(0xFF1E1E1E),
+                          color: BrutalColors.textPrimary,
                           fontWeight: FontWeight.w500,
                         ),
-                        decoration: const InputDecoration(
+                        cursorColor: BrutalColors.primaryYellow,
+                        cursorWidth: 3.0,
+                        decoration: InputDecoration(
                           hintText: 'Type your notes, checklist, memos, financial reminders here...',
                           hintStyle: TextStyle(
                             fontSize: 15,
-                            color: Color(0xFF888888),
+                            color: BrutalColors.textMuted,
                           ),
+                          filled: false,
                           border: InputBorder.none,
                           enabledBorder: InputBorder.none,
                           focusedBorder: InputBorder.none,
@@ -312,21 +317,21 @@ class _NoteEditorScreenState extends ConsumerState<NoteEditorScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: const BoxDecoration(
-                        color: Color(0x181E1E1E),
+                        color: BrutalColors.surfaceElevated,
                         border: Border(
-                          top: BorderSide(color: Color(0x331E1E1E), width: 1.0),
+                          top: BorderSide(color: BrutalColors.borderFaint, width: 1.0),
                         ),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.schedule, size: 14, color: Color(0xFF444444)),
+                          Icon(Icons.schedule, size: 14, color: noteHeaderBg),
                           const SizedBox(width: 6),
                           Text(
                             'CREATED: $_createdAtDisplay',
                             style: const TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF444444),
+                              color: BrutalColors.textSecondary,
                               letterSpacing: 0.5,
                             ),
                           ),

@@ -826,15 +826,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Widget _buildDashboardStickyCard(Map<String, dynamic> note) {
-    const stickyColors = {
-      'yellow': Color(0xFFFFF9A6),
-      'lime': Color(0xFFD4F8D3),
-      'cyan': Color(0xFFD0F4F7),
-      'pink': Color(0xFFFFD4E5),
-      'orange': Color(0xFFFFE0C8),
-      'purple': Color(0xFFE8DBF8),
-    };
-
     const stickyHeaderColors = {
       'yellow': Color(0xFFF9E870),
       'lime': Color(0xFFB5EDB4),
@@ -848,7 +839,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final content = (note['content'] ?? '').toString();
     final colorKey = (note['color'] ?? 'yellow').toString().toLowerCase();
     final isPinned = note['isPinned'] == true;
-    final bg = stickyColors[colorKey] ?? stickyColors['yellow']!;
     final hBg = stickyHeaderColors[colorKey] ?? stickyHeaderColors['yellow']!;
 
     return GestureDetector(
@@ -859,10 +849,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       child: Container(
         width: 170,
         decoration: BoxDecoration(
-          color: bg,
-          border: Border.all(color: const Color(0xFF1E1E1E), width: 2.0),
-          boxShadow: const [
-            BoxShadow(color: Colors.white, offset: Offset(3, 3)),
+          color: BrutalColors.surfaceCard,
+          border: Border.all(color: hBg, width: 2.0),
+          boxShadow: [
+            BoxShadow(color: hBg, offset: const Offset(3, 3)),
           ],
         ),
         child: Column(
@@ -885,7 +875,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   if (isPinned)
                     const Icon(Icons.push_pin, size: 14, color: Color(0xFF8B6B00))
                   else
-                    const Icon(Icons.sticky_note_2, size: 14, color: Color(0xFF555555)),
+                    const Icon(Icons.sticky_note_2, size: 14, color: Color(0xFF333333)),
                 ],
               ),
             ),
@@ -895,10 +885,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: BrutalTypography.headingSmall.copyWith(
                   fontSize: 13,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF1E1E1E),
+                  color: BrutalColors.textPrimary,
                 ),
               ),
             ),
@@ -912,7 +902,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   style: TextStyle(
                     fontSize: 11,
                     height: 1.3,
-                    color: content.isEmpty ? const Color(0xFF888888) : const Color(0xFF222222),
+                    color: content.isEmpty ? BrutalColors.textMuted : BrutalColors.textSecondary,
                   ),
                 ),
               ),

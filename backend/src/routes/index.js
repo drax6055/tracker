@@ -6,6 +6,7 @@ const transactionRoutes = require('./transaction.routes');
 const categoryRoutes = require('./category.routes');
 const debtRoutes = require('./debt.routes');
 const noteRoutes = require('./note.routes');
+const ipoRoutes = require('./ipo.routes');
 
 const router = express.Router();
 
@@ -24,5 +25,6 @@ router.use('/transactions', transactionRoutes);
 router.use('/categories', categoryRoutes);
 router.use('/debts', debtRoutes);
 router.use('/notes', noteRoutes);
+router.use('/ipos', ipoRoutes);
 
 module.exports = router;

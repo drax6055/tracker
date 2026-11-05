@@ -157,6 +157,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         title: 'LEDGER // ${user?.name ?? "OPERATOR"}',
         actions: [
           IconButton(
+            icon: const Icon(Icons.account_balance_outlined, color: BrutalColors.cyan),
+            tooltip: 'IPO Management & Tax Audit',
+            onPressed: () async {
+              await context.push('/ipos');
+              _loadDashboardData();
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.sticky_note_2_outlined, color: BrutalColors.primaryYellow),
             tooltip: 'Sticky Notes Pinboard',
             onPressed: () async {
@@ -536,6 +544,76 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       },
                     ),
                   ),
+                const SizedBox(height: 16),
+
+                // IPO Management & CA Tax Audit Widget
+                InkWell(
+                  onTap: () async {
+                    await context.push('/ipos');
+                    _loadDashboardData();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: BrutalColors.surfaceCard,
+                      border: Border.all(color: BrutalColors.cyan, width: 2.0),
+                      boxShadow: const [
+                        BoxShadow(color: BrutalColors.cyan, offset: Offset(3.5, 3.5)),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: BrutalColors.cyan,
+                            border: Border.all(color: Colors.black, width: 1.5),
+                          ),
+                          child: const Icon(Icons.account_balance, color: Colors.black, size: 24),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    'IPO DESK & CA TAX AUDIT',
+                                    style: BrutalTypography.sticker.copyWith(
+                                      color: BrutalColors.cyan,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                    color: BrutalColors.lime,
+                                    child: const Text('LIVE FINAPI', style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Colors.black)),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                'Track multi-demat bids, live status & export CA audit statements.',
+                                style: BrutalTypography.bodyMedium.copyWith(fontSize: 11.5, color: BrutalColors.textSecondary),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: BrutalColors.surfaceElevated,
+                            border: Border.all(color: Colors.white, width: 1.5),
+                          ),
+                          child: const Icon(Icons.arrow_forward, color: BrutalColors.primaryYellow, size: 16),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 24),
 
                 // 5. Recent Transactions
@@ -814,6 +892,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   onPressed: () async {
                     Navigator.pop(ctx);
                     await context.push('/notes/editor');
+                    _loadDashboardData();
+                  },
+                ),
+                const SizedBox(height: 12),
+                BrutalButton(
+                  text: '+ APPLY / TRACK IPO',
+                  backgroundColor: BrutalColors.cyan,
+                  textColor: BrutalColors.textDark,
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    await context.push('/ipos');
                     _loadDashboardData();
                   },
                 ),

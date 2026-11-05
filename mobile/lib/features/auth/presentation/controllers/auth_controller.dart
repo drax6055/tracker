@@ -6,6 +6,7 @@ import '../../../../core/storage/secure_storage_service.dart';
 import '../../../../core/services/cloud_sync_service.dart';
 import '../../../transactions/presentation/controllers/transactions_controller.dart';
 import '../../../notes/presentation/controllers/notes_controller.dart';
+import '../../../ipo/presentation/controllers/ipo_controller.dart';
 import '../../data/auth_repository.dart';
 import '../../data/models/user_model.dart';
 
@@ -278,12 +279,16 @@ class AuthController extends Notifier<AuthState> {
     _stopSessionPolling();
     ref.invalidate(transactionsProvider);
     ref.invalidate(notesProvider);
+    ref.invalidate(ipoProvider);
     await _repo.logout();
     state = const AuthState(isAuthenticated: false);
   }
 
   Future<void> terminateAccountAndPurgeData() async {
     _stopSessionPolling();
+    ref.invalidate(transactionsProvider);
+    ref.invalidate(notesProvider);
+    ref.invalidate(ipoProvider);
     state = state.copyWith(isLoading: true);
     await _repo.terminateAccountAndPurgeData();
     state = const AuthState(isAuthenticated: false);

@@ -22,6 +22,7 @@ class CloudSyncService {
         syncCategories(),
         syncDebts(),
         syncNotes(),
+        syncIpos(),
       ]);
     } catch (_) {
       // Offline fallback: local cache handles operation smoothly
@@ -239,5 +240,72 @@ class CloudSyncService {
     try {
       await _client.dio.delete('${ApiEndpoints.notes}/$id');
     } catch (_) {}
+  }
+
+  /// Sync IPO Applications between Cloud and Local
+  Future<void> syncIpos() async {
+    final token = await SecureStorageService.getAccessToken();
+    if (token == null || token.isEmpty) return;
+
+    try {
+      final response = await _client.dio.get(ApiEndpoints.ipos);
+      final list = response.data['data'] as List<dynamic>?;
+
+      if (list != null) {
+        final cloudIpos = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        await SecureStorageService.saveIpos(cloudIpos);
+        return;
+      }
+    } catch (_) {
+      // Offline fallback
+    }
+  }
+
+  /// Create IPO Application in Cloud
+  Future<Map<String, dynamic>?> createIpo(Map<String, dynamic> ipoData) async {
+    try {
+      final response = await _client.dio.post(
+        ApiEndpoints.ipos,
+        data: ipoData,
+      );
+      return response.data['data'] as Map<String, dynamic>?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Update IPO Application in Cloud
+  Future<void> updateIpo(String id, Map<String, dynamic> ipoData) async {
+    try {
+      await _client.dio.put(
+        '${ApiEndpoints.ipos}/$id',
+        data: ipoData,
+      );
+    } catch (_) {}
+  }
+
+  /// Delete IPO Application in Cloud
+  Future<void> deleteIpo(String id) async {
+    try {
+      await _client.dio.delete('${ApiEndpoints.ipos}/$id');
+    } catch (_) {}
+  }
+
+  /// Get CA Tax Audit Report from Cloud
+  Future<Map<String, dynamic>?> fetchCaReport({String? fy, String? applicant, String? pan}) async {
+    try {
+      final queryParams = <String, dynamic>{};
+      if (fy != null && fy.isNotEmpty) queryParams['fy'] = fy;
+      if (applicant != null && applicant.isNotEmpty) queryParams['applicant'] = applicant;
+      if (pan != null && pan.isNotEmpty) queryParams['pan'] = pan;
+
+      final response = await _client.dio.get(
+        ApiEndpoints.ipoCaReport,
+        queryParameters: queryParams,
+      );
+      return response.data['data'] as Map<String, dynamic>?;
+    } catch (_) {
+      return null;
+    }
   }
 }

@@ -22,6 +22,8 @@ import '../features/transactions/presentation/screens/add_transaction_screen.dar
 import '../features/transactions/presentation/screens/transactions_screen.dart';
 import '../features/notes/presentation/screens/notes_screen.dart';
 import '../features/notes/presentation/screens/note_editor_screen.dart';
+import '../features/ipo/presentation/screens/ipo_main_screen.dart';
+import '../features/ipo/presentation/screens/add_edit_ipo_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
@@ -236,6 +238,19 @@ final List<RouteBase> _appRoutes = [
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => NoteEditorScreen(
         note: state.extra as Map<String, dynamic>?,
+      ),
+    ),
+    GoRoute(
+      path: '/ipos',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const IpoMainScreen(),
+    ),
+    GoRoute(
+      path: '/ipos/add',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => AddEditIpoScreen(
+        existingIpo: (state.extra as Map<String, dynamic>?)?['existingIpo'],
+        prefillMarketIpo: (state.extra as Map<String, dynamic>?)?['prefillMarketIpo'],
       ),
     ),
   ];

@@ -174,6 +174,7 @@ class SecureStorageService {
       _memCategories = null;
       _memDebts = null;
       _memNotes = null;
+      _memIpos = null;
       _memUserEmail = currentEmail;
     }
   }
@@ -689,6 +690,69 @@ class SecureStorageService {
     }
   }
 
+  // IPO Management & Tax Tracking
+  static const String _iposKey = 'ledger_ipos';
+  static List<Map<String, dynamic>>? _memIpos;
+
+  static Future<void> saveIpos(List<Map<String, dynamic>> ipos) async {
+    _memIpos = List<Map<String, dynamic>>.from(ipos);
+    final prefix = await _userKeyPrefix();
+    try {
+      await _storage.write(key: '$prefix$_iposKey', value: jsonEncode(ipos));
+    } catch (_) {}
+  }
+
+  static Future<List<Map<String, dynamic>>> getIpos() async {
+    final currentEmail = await _getCurrentUserEmail();
+    _checkMemCacheInvalidation(currentEmail);
+
+    if (_memIpos != null) {
+      return List<Map<String, dynamic>>.from(_memIpos!);
+    }
+    final prefix = await _userKeyPrefix();
+    try {
+      final str = await _storage.read(key: '$prefix$_iposKey');
+      if (str != null && str.isNotEmpty) {
+        final list = jsonDecode(str) as List<dynamic>;
+        final res = list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        res.sort((a, b) {
+          final tA = DateTime.tryParse(a['updatedAt'] ?? a['createdAt'] ?? '') ?? DateTime(1970);
+          final tB = DateTime.tryParse(b['updatedAt'] ?? b['createdAt'] ?? '') ?? DateTime(1970);
+          return tB.compareTo(tA);
+        });
+        _memIpos = res;
+        return List<Map<String, dynamic>>.from(res);
+      }
+    } catch (_) {}
+
+    _memIpos = [];
+    return [];
+  }
+
+  static Future<void> addIpo(Map<String, dynamic> ipo) async {
+    final current = await getIpos();
+    current.insert(0, ipo);
+    await saveIpos(current);
+  }
+
+  static Future<void> updateIpo(Map<String, dynamic> ipo) async {
+    final current = await getIpos();
+    final ipoId = (ipo['id'] ?? ipo['_id'] ?? '').toString();
+    final idx = current.indexWhere((i) => (i['id'] ?? i['_id'] ?? '').toString() == ipoId);
+    if (idx != -1) {
+      current[idx] = ipo;
+    } else {
+      current.insert(0, ipo);
+    }
+    await saveIpos(current);
+  }
+
+  static Future<void> deleteIpo(String id) async {
+    final current = await getIpos();
+    current.removeWhere((i) => (i['id'] ?? i['_id'] ?? '').toString() == id);
+    await saveIpos(current);
+  }
+
   static const String _deviceIdKey = 'ledger_device_id';
   static String? _memDeviceId;
 
@@ -739,6 +803,7 @@ class SecureStorageService {
     _memCategories = null;
     _memDebts = null;
     _memNotes = null;
+    _memIpos = null;
     _memUserEmail = null;
     await _storage.delete(key: _accessTokenKey);
     await _storage.delete(key: _refreshTokenKey);
@@ -748,6 +813,7 @@ class SecureStorageService {
     await _storage.delete(key: _transactionsKey);
     await _storage.delete(key: _debtsKey);
     await _storage.delete(key: _notesKey);
+    await _storage.delete(key: _iposKey);
   }
 
   // Clear Auth Tokens Only (keeps settings, biometric state, and device ID)
@@ -757,6 +823,7 @@ class SecureStorageService {
     _memCategories = null;
     _memDebts = null;
     _memNotes = null;
+    _memIpos = null;
     _memUserEmail = null;
     await _storage.delete(key: _accessTokenKey);
     await _storage.delete(key: _refreshTokenKey);
@@ -774,6 +841,7 @@ class SecureStorageService {
     _memCategories = null;
     _memDebts = null;
     _memNotes = null;
+    _memIpos = null;
     _memUserEmail = null;
     final devId = await _storage.read(key: _deviceIdKey);
     final bioEnabled = await _storage.read(key: _biometricEnabledKey);

@@ -27,3 +27,4 @@ router
   .delete(deleteIpo);
 
 module.exports = router;
+

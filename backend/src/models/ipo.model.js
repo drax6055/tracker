@@ -196,3 +196,4 @@ ipoSchema.index({ userId: 1, status: 1, createdAt: -1 });
 ipoSchema.index({ userId: 1, financialYear: 1, status: 1 });
 
 module.exports = mongoose.model('Ipo', ipoSchema);
+

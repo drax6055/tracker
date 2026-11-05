@@ -842,3 +842,4 @@ class _AddEditIpoScreenState extends ConsumerState<AddEditIpoScreen> {
     );
   }
 }
+

@@ -100,3 +100,4 @@ class IpoNotifier extends Notifier<List<Map<String, dynamic>>> {
     await updateIpo(updated);
   }
 }
+

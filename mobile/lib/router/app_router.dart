@@ -182,7 +182,16 @@ final List<RouteBase> _appRoutes = [
             ),
           ],
         ),
-        // Tab 4: Debts
+        // Tab 4: IPO Desk
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/ipos',
+              builder: (context, state) => const IpoMainScreen(),
+            ),
+          ],
+        ),
+        // Tab 5: Debts
         StatefulShellBranch(
           routes: [
             GoRoute(

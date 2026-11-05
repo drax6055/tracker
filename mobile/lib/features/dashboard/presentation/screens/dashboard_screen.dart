@@ -156,13 +156,38 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       appBar: BrutalAppBar(
         title: 'LEDGER // ${user?.name ?? "OPERATOR"}',
         actions: [
-          IconButton(
-            icon: const Icon(Icons.account_balance_outlined, color: BrutalColors.cyan),
-            tooltip: 'IPO Management & Tax Audit',
-            onPressed: () async {
+          GestureDetector(
+            onTap: () async {
               await context.push('/ipos');
               _loadDashboardData();
             },
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: BrutalColors.cyan,
+                border: Border.all(color: Colors.white, width: 1.5),
+                boxShadow: const [
+                  BoxShadow(color: Colors.white, offset: Offset(2, 2)),
+                ],
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.trending_up, size: 14, color: Colors.black),
+                  SizedBox(width: 4),
+                  Text(
+                    'IPO',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 11,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
           IconButton(
             icon: const Icon(Icons.sticky_note_2_outlined, color: BrutalColors.primaryYellow),
@@ -252,6 +277,114 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       ),
                     ],
                   ),
+                ),
+                const SizedBox(height: 16),
+
+                // Quick Hub Bar: IPO Desk & Sticky Pinboard
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () async {
+                          await context.push('/ipos');
+                          _loadDashboardData();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: BrutalColors.surfaceCard,
+                            border: Border.all(color: BrutalColors.cyan, width: 2.0),
+                            boxShadow: const [
+                              BoxShadow(color: BrutalColors.cyan, offset: Offset(3.5, 3.5)),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: const BoxDecoration(
+                                  color: BrutalColors.cyan,
+                                ),
+                                child: const Icon(Icons.trending_up, color: Colors.black, size: 18),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'IPO DESK',
+                                      style: BrutalTypography.sticker.copyWith(
+                                        color: BrutalColors.cyan,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 12.5,
+                                      ),
+                                    ),
+                                    const Text(
+                                      'Bids · FinAPI · CA',
+                                      style: TextStyle(fontSize: 9.5, color: BrutalColors.textSecondary, fontWeight: FontWeight.w500),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.arrow_forward, color: BrutalColors.cyan, size: 16),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () async {
+                          await context.push('/notes');
+                          _loadDashboardData();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: BrutalColors.surfaceCard,
+                            border: Border.all(color: BrutalColors.primaryYellow, width: 2.0),
+                            boxShadow: const [
+                              BoxShadow(color: BrutalColors.primaryYellow, offset: Offset(3.5, 3.5)),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: const BoxDecoration(
+                                  color: BrutalColors.primaryYellow,
+                                ),
+                                child: const Icon(Icons.sticky_note_2, color: Colors.black, size: 18),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'STICKY NOTES',
+                                      style: BrutalTypography.sticker.copyWith(
+                                        color: BrutalColors.primaryYellow,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 12.5,
+                                      ),
+                                    ),
+                                    const Text(
+                                      'Pinboard & Memos',
+                                      style: TextStyle(fontSize: 9.5, color: BrutalColors.textSecondary, fontWeight: FontWeight.w500),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.arrow_forward, color: BrutalColors.primaryYellow, size: 16),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 20),
 

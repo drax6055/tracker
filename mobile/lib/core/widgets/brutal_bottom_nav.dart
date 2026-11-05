@@ -65,16 +65,19 @@ class BrutalBottomNav extends StatelessWidget {
                       children: [
                         Icon(
                           item.icon,
-                          size: 22,
+                          size: 20,
                           color: isSelected ? BrutalColors.textDark : BrutalColors.textPrimary,
                         ),
-                        const SizedBox(height: 3),
-                        Text(
-                          item.label.toUpperCase(),
-                          style: BrutalTypography.sticker.copyWith(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: isSelected ? BrutalColors.textDark : BrutalColors.textSecondary,
+                        const SizedBox(height: 2),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            item.label.toUpperCase(),
+                            style: BrutalTypography.sticker.copyWith(
+                              fontSize: 9.0,
+                              fontWeight: FontWeight.w800,
+                              color: isSelected ? BrutalColors.textDark : BrutalColors.textSecondary,
+                            ),
                           ),
                         ),
                       ],

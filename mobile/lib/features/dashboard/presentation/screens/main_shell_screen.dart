@@ -26,6 +26,7 @@ class MainShellScreen extends StatelessWidget {
           BrutalNavItem(icon: Icons.dashboard_outlined, label: 'VAULT'),
           BrutalNavItem(icon: Icons.account_balance_outlined, label: 'ACCOUNTS'),
           BrutalNavItem(icon: Icons.receipt_long_outlined, label: 'LEDGER'),
+          BrutalNavItem(icon: Icons.trending_up, label: 'IPO'),
           BrutalNavItem(icon: Icons.people_outline, label: 'DEBTS'),
           BrutalNavItem(icon: Icons.bar_chart_outlined, label: 'REPORTS'),
         ],

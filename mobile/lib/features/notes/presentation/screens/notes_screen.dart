@@ -107,6 +107,16 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       return true;
     }).toList();
 
+    // Reset page controller when filtered results change
+    if (!_isGridView && _currentPage >= filtered.length) {
+      _currentPage = (filtered.length - 1).clamp(0, filtered.length);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_pageController.hasClients && filtered.isNotEmpty) {
+          _pageController.jumpToPage(_currentPage);
+        }
+      });
+    }
+
     final pinnedNotes = filtered.where((n) => n['isPinned'] == true).toList();
     final otherNotes = filtered.where((n) => n['isPinned'] != true).toList();
     final swipeOrderedNotes = [...pinnedNotes, ...otherNotes];
@@ -174,7 +184,12 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                 children: [
                   TextField(
                     controller: _searchController,
-                    onChanged: (val) => setState(() {}),
+                    onChanged: (val) => setState(() {
+                      _currentPage = 0;
+                      if (_pageController.hasClients) {
+                        _pageController.jumpToPage(0);
+                      }
+                    }),
                     style: BrutalTypography.bodyMedium.copyWith(color: BrutalColors.textPrimary),
                     cursorColor: BrutalColors.primaryYellow,
                     decoration: InputDecoration(
@@ -186,7 +201,12 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                               icon: const Icon(Icons.close, color: BrutalColors.textPrimary),
                               onPressed: () {
                                 _searchController.clear();
-                                setState(() {});
+                                setState(() {
+                                  _currentPage = 0;
+                                  if (_pageController.hasClients) {
+                                    _pageController.jumpToPage(0);
+                                  }
+                                });
                               },
                             )
                           : null,
@@ -285,7 +305,13 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       textColor: isSelected ? BrutalColors.textDark : BrutalColors.textSecondary,
       borderColor: isSelected ? BrutalColors.border : BrutalColors.borderDim,
       shadowOffset: isSelected ? 3.0 : 0.0,
-      onTap: () => setState(() => _selectedColorFilter = label),
+      onTap: () => setState(() {
+        _selectedColorFilter = label;
+        _currentPage = 0;
+        if (_pageController.hasClients) {
+          _pageController.jumpToPage(0);
+        }
+      }),
     );
   }
 
@@ -598,7 +624,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   Widget _buildNotesGrid(List<Map<String, dynamic>> notes) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final crossAxisCount = constraints.maxWidth > 650 ? 3 : (constraints.maxWidth > 400 ? 2 : 1);
+        final crossAxisCount = constraints.maxWidth > 650 ? 3 : 2;
         return GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),

@@ -551,6 +551,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             const SizedBox(height: 24),
 
+            // Financial Modules
+            Text('FINANCIAL MODULES & TOOLS', style: BrutalTypography.label.copyWith(color: BrutalColors.primaryYellow)),
+            const SizedBox(height: 10),
+            _buildSettingTile(
+              title: 'IPO MANAGEMENT & CA TAX AUDIT',
+              subtitle: 'Live FinAPI feed, ASBA bids tracker & CA capital gains statement',
+              icon: Icons.trending_up,
+              onTap: () => context.push('/ipos'),
+            ),
+            _buildSettingTile(
+              title: 'STICKY NOTES PINBOARD',
+              subtitle: 'Windows-style financial sticky notes and reminders',
+              icon: Icons.sticky_note_2_outlined,
+              onTap: () => context.push('/notes'),
+            ),
+            const SizedBox(height: 24),
+
             // Danger Zone
             Text('ACCOUNT MANAGEMENT', style: BrutalTypography.label.copyWith(color: BrutalColors.red)),
             const SizedBox(height: 10),
